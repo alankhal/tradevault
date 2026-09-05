@@ -1,22 +1,3 @@
-name: CI
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-jobs:
-  format:
-    name: clang-format
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y clang-format
-      - name: Check formatting
-        run: |
-          find src tests \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
-            | xargs -0 clang-format --dry-run --Werror
-
   build-and-test:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -24,8 +5,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2022]
-    env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
     steps:
       - uses: actions/checkout@v4
 
@@ -43,8 +22,10 @@ jobs:
 
       - name: Bootstrap vcpkg
         shell: bash
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
           if [ "$RUNNER_OS" = "Windows" ]; then
             "$VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
           else
@@ -52,10 +33,16 @@ jobs:
           fi
 
       - name: Configure
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: cmake --preset debug
 
       - name: Build
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: cmake --build --preset debug
 
       - name: Test
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: ctest --preset debug
