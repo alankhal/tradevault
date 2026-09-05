@@ -1,0 +1,7 @@
+build/
+vcpkg_installed/
+CMakeUserPresets.json
+compile_commands.json
+.vs/
+.env
+*-log.txt
