@@ -1,6 +1,6 @@
 # TradeVault
 
-[![CI](https://github.com/alankhal/tradevault/actions/workflows/ci.yml/badge.svg)](https://github.com/alankhal/tradevault/actions/workflows/ci.yml)
+[CI](https://github.com/alankhal/tradevault/actions/workflows/ci.yml/badge.svg)](https://github.com/alankhal/tradevault/actions/workflows/ci.yml)
 
 A trade-capture microservice written in C++20. TradeVault will accept trades over a REST API,
 validate them, persist them to PostgreSQL, and publish trade events to a Kafka-compatible
