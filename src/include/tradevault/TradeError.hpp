@@ -17,9 +17,11 @@ enum class TradeError {
     InternalError
 };
 
-bool isValidQuantity(int quantity);
-bool isValidPrice(double price);
-bool isValidInstrument(const std::string& instrument);
-bool isValidCounterparty(const std::string& counterparty);
+namespace TradeValidator {
+    bool isValidQuantity(int quantity);
+    bool isValidPrice(double price);
+    bool isValidInstrument(const std::string& instrument);
+    bool isValidCounterparty(const std::string& counterparty);
+}  
 
 std::string tradeErrorMessage(TradeError error);

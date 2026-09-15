@@ -25,8 +25,7 @@ class Trade {
 
     public: 
         //Rule of 0 operations as this class does not manually manage any resouces  
-            Trade(const std::string& instrument, const std::string& counterparty, TradeSide side, double price, int quantity); : tradeId_(m_nextId++), m_instrument(instrument), m_countrerparty(counterparty), 
-            m_price(price), m_quantity(quantity), m_clock(std::chrono::system_clock::now()){};
+            Trade(const std::string& instrument, const std::string& counterparty, TradeSide side, double price, int quantity); 
         
 
         //Getters for values

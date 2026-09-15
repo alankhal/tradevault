@@ -39,15 +39,15 @@ std::string tradeErrorMessage(TradeError error) {
 }
 
 //Validation Logic 
-bool TradeError::isValidQuantity(int quantity) { return quantity > 0; }
+bool TradeValidator::isValidQuantity(int quantity) { return quantity > 0; }
 
-//Use 
-bool TradeError::isValidPrice(double price) { return std::isfinite(price) && price > 0.0; }
+//Use isfinite in orderr to make sure we are not getting an infinite value 
+bool TradeValidator::isValidPrice(double price) { return std::isfinite(price) && price > 0.0; }
 
-bool TradeError::isValidInstrument(const std::string& instrument) {
+bool TradeValidator::isValidInstrument(const std::string& instrument) {
     return !instrument.empty();
 }
 
-bool TradeError::isValidCounterparty(const std::string& counterparty) {
+bool TradeValidator::isValidCounterparty(const std::string& counterparty) {
     return !counterparty.empty();
 }
