@@ -29,8 +29,6 @@ class Trade {
             m_price(price), m_quantity(quantity), m_clock(std::chrono::system_clock::now()){};
         
 
-        unsigned id() const;
-
         //Getters for values
         Trade Id getTradeId() const;
         std::string getInstrument() const;
