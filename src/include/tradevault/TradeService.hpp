@@ -1,0 +1,1 @@
+//Offers typical functions within a stock microservice that allows the user to create, get, list and cancel there trades 
