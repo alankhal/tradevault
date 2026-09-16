@@ -20,6 +20,9 @@ class TradeRepository {
     
     //Destructor 
     virtual ~TradeRepository() = default;
+
+    //Update
+    virtual void updateTrade(const Trade& trade) = 0;
 };
 
 
