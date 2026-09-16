@@ -1,7 +1,9 @@
 add_library(tradevault_core
     core/version.cpp
+    core/Trade.cpp
+    core/TradeError.cpp
+    core/InMemoryTradeRepository.cpp
 )
-
 target_include_directories(tradevault_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

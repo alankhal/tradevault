@@ -3,7 +3,7 @@
 
 // Store
 void InMemoryTradeRepository::storeTrade(const Trade& trade) { 
-	m_trade.push_back(trade);  
+	m_trades.push_back(trade);  
 }
 
 // Find 
@@ -59,7 +59,7 @@ void InMemoryTradeRepository::updateTrade(const Trade& trade) {
 			unsigned currentId = m_trades[mid].getTradeId();
 
 			if (currentId == tradeId) {
-                m_trade[mid] = trade;
+                m_trades[mid] = trade;
 
 
 				return; //Base return to end the function early without a return value 

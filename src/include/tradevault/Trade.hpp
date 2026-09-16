@@ -29,7 +29,7 @@ class Trade {
         
 
         //Getters for values
-        Trade Id getTradeId() const;
+        unsigned getTradeId() const;
         std::string getInstrument() const;
         std::string getCounterparty() const;
         TradeSide getSide() const;
