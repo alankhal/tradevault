@@ -51,7 +51,7 @@ merges unless all four pass.
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | Repository scaffold, toolchain, CI | ✅ Done |
-| M1 | Domain model and in-memory service | Next |
+| M1 | Domain model and in-memory service | ✅ Done |
 | M2 | REST API (Drogon) | |
 | M3 | PostgreSQL | |
 | M4 | Docker | |
