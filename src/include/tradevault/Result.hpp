@@ -1,4 +1,5 @@
 //This file holds a container that determines either if there is a succesful value or if an error has occured
+//Using a class template for the purpose of this project is higher value as had we done just optional<Trade>, we would know the trade creation failed, but not the exact reason as to why  
 #pragma once
 
 #include <optional>
