@@ -2,6 +2,7 @@ add_executable(core_tests
     version_test.cpp
     repository_test.cpp
     validator_test.cpp 
+    service_test.cpp
 )
 
 target_link_libraries(core_tests

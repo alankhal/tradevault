@@ -3,8 +3,9 @@
 
 
 //Error Messages 
-//Using a switch for trade errors as we are comparing fixed required constants as opposed to using different functions
-//A switch without a default was also used to ensure that the compiler warns if the error enum grows and this function stops covering it
+//Using a switch for trade errors as we are comparing fixed required constants as opposed to using different functions                    
+//A switch without a default was also used to ensure that the compiler warns if the error enum grows and this function stops covering it    
+//Avoids embedding strings throughout the code                                                                     
 std::string tradeErrorMessage(TradeError error) {
     switch (error) {
         case TradeError::InvalidQuantity:
@@ -19,19 +20,16 @@ std::string tradeErrorMessage(TradeError error) {
         case TradeError::MissingCounterparty:
             return "Trade must contain a counterparty.";
 
-        case TradeError::InvalidTimestamp:
+        case TradeError::InvalidTimestamp:     //Keep temporarily 
             return "Trade timestamp is invalid.";
 
         case TradeError::TradeNotFound:
             return "Trade could not be found.";
 
-        case TradeError::TradeAlreadyExists:
-            return "Trade already exists.";
-
         case TradeError::TradeAlreadyCancelled:
             return "Trade is already cancelled.";
 
-        case TradeError::InternalError:
+        case TradeError::InternalError:     //Useful Error once PostgreSQL is implimented 
             return "An internal error occurred.";
     }
 
