@@ -34,11 +34,11 @@ class Trade {
         std::string getInstrument() const;
         std::string getCounterparty() const;
         TradeSide getSide() const;
-        TradeStatus getStatus() const;
+        TradeStatus getStatus() const; 
         double getPrice() const;
         int getQuantity() const;
 
-        std::chrono::system_clock::time_point getTimestamp() const;
+        std::chrono::system_clock::time_point getTimestamp() const; //Will require readjustment later on 
 
         //Later on additional condition to be placed such as Settled Trades and booked trades cannot be cancelled, as well as cancellation records a time stamp
         bool markCancelled();
