@@ -1,4 +1,7 @@
+#pragma once
+
 #include "tradevault/TradeRepository.hpp"
+#include <optional>
 
 class InMemoryTradeRepository : public TradeRepository {
 

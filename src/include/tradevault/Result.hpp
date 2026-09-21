@@ -3,6 +3,7 @@
 #pragma once
 
 #include <optional>
+#include <stdexcept>
 
 //T for when the operation succeeds, and E for when the operation fails
 template <typename T, typename E>
@@ -35,11 +36,19 @@ public:
 
     const T& value() const
     {
-        return m_value.value();
+        if (!m_value) //Requires the if statement as clang tidy cannot see the caller and sees a bug if optional is empty thus flagging it 
+        {
+            throw std::logic_error("Result has no value");
+        }
+        return *m_value;
     }
 
     E error() const
     {
-        return m_error.value();
+        if (!m_error)
+        {
+            throw std::logic_error("Result has no error");
+        }
+        return *m_error;
     }
 };

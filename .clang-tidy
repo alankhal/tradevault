@@ -5,7 +5,8 @@ Checks: >
   performance-*,
   readability-*,
   -modernize-use-trailing-return-type,
-  -readability-identifier-length
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters
 
 WarningsAsErrors: 'bugprone-*'
 HeaderFilterRegex: '.*/(src|tests)/.*'
