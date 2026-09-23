@@ -27,6 +27,7 @@ add_subdirectory(tests)
 #Added a server executable 
 add_executable(tradevault_server
     app/main.cpp
+    src/api/TradeController.cpp
 )
 
 target_link_libraries(tradevault_server
