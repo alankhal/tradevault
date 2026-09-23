@@ -1,0 +1,10 @@
+//Drogons configuration supports liseteneers with an address, prot and https setting 
+{
+  "listeners": [
+    {
+      "address": "127.0.0.1",
+      "port": 8080,
+      "https": false
+    }
+  ]
+}
