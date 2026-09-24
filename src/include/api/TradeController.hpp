@@ -24,5 +24,5 @@ public:
     // First handler here
     void getTrade (const drogon::HttpRequestPtr& req,
                   std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                  std::unsigned id) const;
+                  unsigned id) const;
 };

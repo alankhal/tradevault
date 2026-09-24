@@ -23,17 +23,3 @@ find_package(Drogon CONFIG REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(tests)
-
-#Added a server executable 
-add_executable(tradevault_server
-    app/main.cpp
-    src/api/TradeController.cpp
-)
-
-target_link_libraries(tradevault_server
-    PRIVATE
-        tradevault_core
-        Drogon::Drogon
-)
-
-target_compile_features(tradevault_server PRIVATE cxx_std_20)

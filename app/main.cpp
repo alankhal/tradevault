@@ -1,4 +1,11 @@
 #include <drogon/drogon.h>
+#include <memory>
+
+#include "api/TradeController.hpp"
+#include "tradevault/InMemoryTradeRepository.hpp"
+#include "tradevault/TradeService.hpp"
+
+
 
 int main()
 {
@@ -24,6 +31,16 @@ drogon::app().registerHandler(
 
     {drogon::Get}
 );
+
+
+// 1. Create repository
+
+// 2. Give repository to TradeService
+
+// 3. Create TradeController and give it TradeService
+
+// 4. Register controller with Drogon
+
 
     // Run the server
     drogon::app().run();
