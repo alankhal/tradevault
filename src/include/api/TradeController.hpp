@@ -4,25 +4,26 @@
 #include <drogon/HttpController.h>
 #include "tradevault/TradeService.hpp"
 
-class TradeController: public drogon::HttpController<TradeController, false> 
+class TradeController : public drogon::HttpController<TradeController, false>
 {
 private:
     TradeService& m_service;
 
 public:
-    //Takes a reference from tradeservice, meaning a controller cannot exist without being given a TradeService  
+    // Controller cannot exist without being given a TradeService
     explicit TradeController(TradeService& service);
 
     METHOD_LIST_BEGIN
 
-    // First route goes here:
     // GET /trades/{id}
-    ADD_METHOD_TO(TradeController::getTrade, "/trades/{id}", drogon::Get); 
+    ADD_METHOD_TO(TradeController::getTrade, "/trades/{id}", drogon::Get);
+    ADD_METHOD_TO(TradeController::listTrades, "/trades", drogon::Get);
 
     METHOD_LIST_END
-
-    // First handler here
-    void getTrade (const drogon::HttpRequestPtr& req,
-                  std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                  unsigned id) const;
+    
+    //Requires an Id parameter
+    void getTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, unsigned id) const;
+    
+    //Does not require ID parameter 
+    void listTrades(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const;
 };

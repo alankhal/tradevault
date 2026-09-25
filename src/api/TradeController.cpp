@@ -48,3 +48,36 @@ void TradeController::getTrade(
 
     callback(response);
 }
+
+void TradeController::listTrades(
+    const drogon::HttpRequestPtr&,
+    std::function<void(const drogon::HttpResponsePtr&)>&& callback) const
+{
+    // 1. Ask TradeService for all trades
+    auto trades = /* call service here */;
+
+    // 2. Create a JSON array
+    Json::Value body(/* choose correct JSON type */);
+
+    // 3. Loop through every Trade
+    for (const auto& trade : trades)
+    {
+        // Create one JSON object for this Trade
+        Json::Value tradeJson;
+
+        // Add:
+        // id
+        // instrument
+        // counterparty
+        // price
+        // quantity
+
+        // Add this trade object to the JSON array
+    }
+
+    // 4. Create HTTP JSON response
+
+    // 5. Set status to 200 OK
+
+    // 6. callback(response)
+}
