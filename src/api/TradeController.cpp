@@ -175,3 +175,58 @@ void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::functi
     callback(response); 
 }
 
+
+//Implemented JSON object for cancelling trades 
+void TradeController::cancelTrade(const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback, unsigned id) const
+{
+    // 1. Ask TradeService to cancel the trade
+    auto result = m_service.cancelTrade(id);
+
+    // 2. Handle cancellation failure
+    if (!result.hasValue())
+    {
+        TradeError error = result.error();
+
+        Json::Value errorBody;
+        errorBody["error"] = tradeErrorMessage(error);
+
+        auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
+
+        if (error == TradeError::TradeNotFound)
+        {
+            response->setStatusCode(drogon::k404NotFound);
+        }
+        else if (error == TradeError::TradeAlreadyCancelled)
+        {
+            response->setStatusCode(drogon::k409Conflict);
+        }
+        else
+        {
+            response->setStatusCode(drogon::k500InternalServerError); //Internal server error added in the event that it does not follow the trade not found or cancelled routes 
+        }
+
+        callback(response);
+        return;
+    }
+
+    // 3. Retrieve successfully cancelled Trade
+    const Trade& trade = result.value();
+
+    // 4. Convert Trade to JSON
+    Json::Value body;
+    body["id"] = trade.getTradeId();
+    body["instrument"] = trade.getInstrument();
+    body["counterparty"] = trade.getCounterparty();
+    body["price"] = trade.getPrice();
+    body["quantity"] = trade.getQuantity();
+
+    // 5. Create response
+    auto response = drogon::HttpResponse::newHttpJsonResponse(body);
+
+    // 6. Successful cancellation
+    response->setStatusCode(drogon::k200OK);
+
+    // 7. Send response
+    callback(response);
+}
+
