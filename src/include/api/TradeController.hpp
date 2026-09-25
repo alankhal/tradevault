@@ -21,6 +21,7 @@ public:
     
     //POST /trades/
     ADD_METHOD_TO(TradeController::createTrade, "/trades", drogon::Post);
+    ADD_METHOD_TO(TradeController::cancelTrade, "/trades/{id}/cancel", drogon::Post);
 
     METHOD_LIST_END
     
@@ -32,4 +33,5 @@ public:
 
     void createTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const;
 
+    void cancelTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, unsigned id) const;
 };

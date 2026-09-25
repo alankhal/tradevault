@@ -89,7 +89,7 @@ void TradeController::listTrades(const drogon::HttpRequestPtr&, std::function<vo
 
 //POST FUNCTIONS
 //Creating an incoming Trade Obj into JSON 
-void createTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const 
+void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const 
 {
     // 1. Get JSON body from request
     auto jsonBody = req->getJsonObject();  //Drogons incoming HTTP request, pretty much says "Take the body of this request and parse it as JSON if possible
@@ -146,7 +146,7 @@ void createTrade(const drogon::HttpRequestPtr& req, std::function<void(const dro
         errorBody["error"] = tradeErrorMessage(result.error());  
 
         auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
-        response->setStatusCode(drogon::k400NotFound); 
+        response->setStatusCode(drogon::k400BadRequest);
 
         callback(response); 
         return;
