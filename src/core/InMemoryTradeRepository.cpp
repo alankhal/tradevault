@@ -51,7 +51,7 @@ void InMemoryTradeRepository::updateTrade(const Trade& trade) {
 	unsigned tradeId = trade.getTradeId(); 
 
 	int left = 0; 
-	int right = static_cast<int>(m_trades.size()) - 1; //Static is needed as m_trades returns an assignmed number, if you assign one to the other it silently squeezes it down, 
+	int right = static_cast<int>(m_trades.size()) - 1; //Static is needed as m_trades returns an assigned number, if you assign one to the other it silently squeezes it down, 
 													   //if the size is ever past 2.1 billion you would get a wrong/ negative number, hence static make it an int preventing this potential bug
 
 	while (left <= right) {

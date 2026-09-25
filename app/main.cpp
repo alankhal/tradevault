@@ -35,8 +35,8 @@ int main()
     // 2. Inject repository into TradeService
     TradeService service(repository);
 
-    // 3. Inject TradeService into TradeController
-    auto controller = std::make_shared<TradeController>(service);
+    // 3. Inject TradeService into TradeController    //Doudble check if shared pointer is the best option here? 
+    auto controller = std::make_shared<TradeController>(service); 
 
     // 4. Register TradeController with Drogon
     drogon::app().registerController(controller);

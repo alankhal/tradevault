@@ -18,6 +18,9 @@ public:
     // GET /trades/{id}
     ADD_METHOD_TO(TradeController::getTrade, "/trades/{id}", drogon::Get);
     ADD_METHOD_TO(TradeController::listTrades, "/trades", drogon::Get);
+    
+    //POST /trades/
+    ADD_METHOD_TO(TradeController::createTrade, "/trades", drogon::Post);
 
     METHOD_LIST_END
     
@@ -26,4 +29,7 @@ public:
     
     //Does not require ID parameter 
     void listTrades(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const;
+
+    void createTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const;
+
 };
