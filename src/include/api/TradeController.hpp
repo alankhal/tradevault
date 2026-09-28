@@ -3,6 +3,7 @@
 #include <functional>
 #include <drogon/HttpController.h>
 #include "tradevault/TradeService.hpp"
+#include "api/TradeJson.hpp"
 
 class TradeController : public drogon::HttpController<TradeController, false>
 {

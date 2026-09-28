@@ -2,6 +2,7 @@
 
 #include "api/TradeController.hpp"
 
+
 /*---------------CORE API OPERATIONS----------------------------------------------------------------------------------------------*/
 //Use initializer list to set up constructor
 TradeController::TradeController(TradeService& service)
@@ -36,16 +37,9 @@ void TradeController::getTrade(
     // SUCCESS PATH
     const Trade& trade = result.value(); //Retrieves the successful Trade that is place inside Result<Trade, TradeError>, and refers to the one already inside the result 
 
-    Json::Value body; 
+    Json::Value body = TradeJson::toJson(trade);
 
-    body["id"] = trade.getTradeId();
-    body["instrument"] = trade.getInstrument();
-    body["counterparty"] = trade.getCounterparty();
-    body["price"] = trade.getPrice();
-    body["quantity"] = trade.getQuantity();
-
-    auto response = drogon::HttpResponse::newHttpJsonResponse(body); 
-
+    auto response = drogon::HttpResponse::newHttpJsonResponse(body);
     response->setStatusCode(drogon::k200OK);
 
     callback(response);
@@ -64,17 +58,8 @@ void TradeController::listTrades(const drogon::HttpRequestPtr&, std::function<vo
     // 3. Loop through every Trade
     for (const auto& trade : trades)
     {
-        // Create one JSON object for this Trade
-        Json::Value tradeJson;
-
         //Since its looping through the trades from trade service, it takes that and appends it to Json object which is then put into a JSON array, essentailly acting as a funnel 
-        tradeJson["id"] = trade.getTradeId();
-        tradeJson["instrument"] = trade.getInstrument();
-        tradeJson["counterparty"] = trade.getCounterparty();
-        tradeJson["price"] = trade.getPrice();
-        tradeJson["quantity"] = trade.getQuantity();
-
-        body.append(tradeJson);
+        body.append(TradeJson::toJson(trade));
     }
 
     // 4. Create HTTP JSON response
@@ -158,12 +143,7 @@ void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::functi
     const Trade& trade = result.value();
 
     // 8. Convert Trade to JSON
-        Json::Value body;
-        body["id"] = trade.getTradeId();
-        body["instrument"] = trade.getInstrument();
-        body["counterparty"] = trade.getCounterparty();
-        body["price"] = trade.getPrice();
-        body["quantity"] = trade.getQuantity();
+    Json::Value body = TradeJson::toJson(trade);
 
 
     // 9. Create response
@@ -214,12 +194,7 @@ void TradeController::cancelTrade(const drogon::HttpRequestPtr&, std::function<v
     const Trade& trade = result.value();
 
     // 4. Convert Trade to JSON
-    Json::Value body;
-    body["id"] = trade.getTradeId();
-    body["instrument"] = trade.getInstrument();
-    body["counterparty"] = trade.getCounterparty();
-    body["price"] = trade.getPrice();
-    body["quantity"] = trade.getQuantity();
+    Json::Value body = TradeJson::toJson(trade);
 
     // 5. Create response
     auto response = drogon::HttpResponse::newHttpJsonResponse(body);

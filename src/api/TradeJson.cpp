@@ -16,7 +16,7 @@ namespace
         return "Unknown";
     }
 
-     std::string statusToString(TradeStatus status)
+    std::string statusToString(TradeStatus status)
     {
         switch (status)
         {
@@ -29,7 +29,7 @@ namespace
 
         return "Unknown";
     }
-
+} // closes anonymous namespace
 
 Json::Value TradeJson::toJson(const Trade& trade)
 {
@@ -38,10 +38,10 @@ Json::Value TradeJson::toJson(const Trade& trade)
     body["id"] = trade.getTradeId();
     body["instrument"] = trade.getInstrument();
     body["counterparty"] = trade.getCounterparty();
-    body["price"] = trade.getPrice();
-    body["quantity"] = trade.getQuantity();
     body["side"] = sideToString(trade.getSide());
     body["status"] = statusToString(trade.getStatus());
+    body["price"] = trade.getPrice();
+    body["quantity"] = trade.getQuantity();
 
     return body;
 }
