@@ -2,6 +2,7 @@
 
 #include "api/TradeController.hpp"
 
+/*---------------CORE API OPERATIONS----------------------------------------------------------------------------------------------*/
 //Use initializer list to set up constructor
 TradeController::TradeController(TradeService& service)
     : m_service(service){}
@@ -229,4 +230,4 @@ void TradeController::cancelTrade(const drogon::HttpRequestPtr&, std::function<v
     // 7. Send response
     callback(response);
 }
-
+/*---------------CORE API OPERATIONS----------------------------------------------------------------------------------------------*/
