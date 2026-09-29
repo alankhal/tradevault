@@ -10,4 +10,4 @@ namespace HttpErrorMapper
     
     //Will hold the repetitive response construction that JSON uses 
     drogon::HttpResponsePtr toResponse(TradeError error);
-}
+} 

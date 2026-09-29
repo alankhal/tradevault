@@ -1,12 +1,15 @@
 //Big distinction on this portion of the project is that Result.hpp is how TradeService communicates success or failure back to TradeController
 
 #include "api/TradeController.hpp"
-
+#include <drogon/drogon.h>
 
 /*---------------CORE API OPERATIONS----------------------------------------------------------------------------------------------*/
 //Use initializer list to set up constructor
 TradeController::TradeController(TradeService& service)
     : m_service(service){}
+
+
+
 
 
 //GetTrade for JSON 
@@ -15,6 +18,7 @@ void TradeController::getTrade(
     std::function<void(const drogon::HttpResponsePtr&)>&& callback,
     unsigned id) const
 {
+
     //Ask the service layer for the trade
     auto result = m_service.getTrade(id);
 
@@ -22,15 +26,7 @@ void TradeController::getTrade(
     if (!result.hasValue())
     {
 
-        Json::Value errorBody; //Json has its own name space, similar to something such as std::optional, Json::Value is apart of it
-
-        errorBody["error"] = tradeErrorMessage(result.error());  
-
-        auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
-
-        response->setStatusCode(drogon::k404NotFound); //response is provided by Drogons HttpResponse class, which is HTTP's response object
-
-        callback(response); //callback is a drogon feature, essentailly marking that the request is done
+        callback(HttpErrorMapper::toResponse(result.error()));
         return;
     }
 
@@ -78,18 +74,22 @@ void TradeController::listTrades(const drogon::HttpRequestPtr&, std::function<vo
 void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const 
 {
     // 1. Get JSON body from request
-    auto jsonBody = req->getJsonObject();  //Drogons incoming HTTP request, pretty much says "Take the body of this request and parse it as JSON if possible
+    auto jsonBody = req->getJsonObject();  //Drogons incoming HTTP request, pretty much says "Take the body of this request and parse it as JSON if possible"
 
     // 2. If body is not valid JSON, return HTTP 400
-    if (!jsonBody){
+    if (!jsonBody)
+    {
         Json::Value errorBody;
-        errorBody["error"] = "Invalid JSON body";
-        
+        errorBody["type"] = "about:blank";
+        errorBody["title"] = "Bad Request";
+        errorBody["status"] = 400;
+        errorBody["detail"] = "Invalid JSON body";
+
         auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
         response->setStatusCode(drogon::k400BadRequest);
-        
+
         callback(response);
-        return;  //Without return code could continue to extracting fields even though jsonBody is null 
+        return;
     }
 
 
@@ -114,7 +114,10 @@ void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::functi
     else
     {
         Json::Value errorBody;
-        errorBody["error"] = "Side must be either Buy or Sell";
+        errorBody["type"] = "about:blank";
+        errorBody["title"] = "Bad Request";
+        errorBody["status"] = 400;
+        errorBody["detail"] = "Side must be either Buy or Sell";
 
         auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
         response->setStatusCode(drogon::k400BadRequest);
@@ -127,17 +130,11 @@ void TradeController::createTrade(const drogon::HttpRequestPtr& req, std::functi
 
     // 6. If result failed:create JSON error, status 400, callback, return
     
-    if (!result.hasValue()){
-        Json::Value errorBody; 
-        errorBody["error"] = tradeErrorMessage(result.error());  
-
-        auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
-        response->setStatusCode(drogon::k400BadRequest);
-
-        callback(response); 
+    if (!result.hasValue())
+    {   
+        callback(HttpErrorMapper::toResponse(result.error()));
         return;
     }
-
 
     // 7. Get successful Trade
     const Trade& trade = result.value();
@@ -166,27 +163,7 @@ void TradeController::cancelTrade(const drogon::HttpRequestPtr&, std::function<v
     // 2. Handle cancellation failure
     if (!result.hasValue())
     {
-        TradeError error = result.error();
-
-        Json::Value errorBody;
-        errorBody["error"] = tradeErrorMessage(error);
-
-        auto response = drogon::HttpResponse::newHttpJsonResponse(errorBody);
-
-        if (error == TradeError::TradeNotFound)
-        {
-            response->setStatusCode(drogon::k404NotFound);
-        }
-        else if (error == TradeError::TradeAlreadyCancelled)
-        {
-            response->setStatusCode(drogon::k409Conflict);
-        }
-        else
-        {
-            response->setStatusCode(drogon::k500InternalServerError); //Internal server error added in the event that it does not follow the trade not found or cancelled routes 
-        }
-
-        callback(response);
+        callback(HttpErrorMapper::toResponse(result.error()));
         return;
     }
 

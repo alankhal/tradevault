@@ -19,6 +19,7 @@ add_executable(tradevault_api
     ${PROJECT_SOURCE_DIR}/app/main.cpp
     api/TradeController.cpp
     api/TradeJson.cpp
+    api/HttpErrorMapper.cpp
 )
 
 target_link_libraries(tradevault_api

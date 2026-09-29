@@ -1,4 +1,4 @@
-//Drogons configuration supports liseteneers with an address, prot and https setting 
+//Drogons configuration supports liseteneers with an address, prot and https setting
 {
   "listeners": [
     {
@@ -6,5 +6,16 @@
       "port": 8080,
       "https": false
     }
-  ]
+  ],
+  
+  "app": {
+    "document_root": "./public",
+
+    "file_types": [
+      "html",
+      "js",
+      "css",
+      "json"
+    ]
+  }
 }
