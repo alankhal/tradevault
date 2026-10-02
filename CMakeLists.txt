@@ -20,6 +20,8 @@ enable_testing()
 find_package(spdlog CONFIG REQUIRED) #Searches for the vcpkg installed libraries, failing loud if they are missing
 find_package(GTest CONFIG REQUIRED)
 find_package(Drogon CONFIG REQUIRED) 
+find_package(libpqxx CONFIG REQUIRED)
 
 add_subdirectory(src)
 add_subdirectory(tests)
+
