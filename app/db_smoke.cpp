@@ -14,14 +14,14 @@ int main()
         // 2. Work is unit of database work using that channel 
         pqxx::work transaction{connection};
 
-        // 3. Start a transaction.
-        transaction.exec("SELECT current_database();");
-
-        // 4. Execute: SELECT current_database();
+        // 3. Execute a SQL and save the result 
         pqxx::result result = transaction.exec("SELECT current_database();");
 
+        // 4. Execute: SELECT current_database
+        std::string name = result[0][0].as<std::string>();  //Need to double check as to why this is needed??? 
+
         // 5. Print the returned database name.
-        std::string name = result[0][0].as<std::string>();
+        std::cout << "Connected to database: " << name << '\n';
 
         return 0;
     }
