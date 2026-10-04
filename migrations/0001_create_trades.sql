@@ -1,5 +1,5 @@
 --PostgreSQL constratins needed to protect stored data 
-CREATE TABLE trades
+CREATE TABLE IF NOT EXISTS trades
 (
     trade_id       BIGINT PRIMARY KEY, --Requires primary key as each id is unique
     instrument     TEXT NOT NULL, --Requires NOTNULL as instrument is needed for trade 
