@@ -4,6 +4,7 @@ add_library(tradevault_core
     core/TradeError.cpp
     core/InMemoryTradeRepository.cpp
     core/TradeService.cpp
+    src/PostgresTradeRepository.cpp
 )
 
 target_include_directories(tradevault_core
