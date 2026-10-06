@@ -2,9 +2,10 @@
 add_executable(core_tests
     version_test.cpp
     repository_test.cpp
-    validator_test.cpp 
+    validator_test.cpp
     service_test.cpp
 )
+
 
 target_link_libraries(core_tests
     PRIVATE tradevault_core tradevault_warnings GTest::gtest GTest::gtest_main
@@ -12,6 +13,28 @@ target_link_libraries(core_tests
 
 include(GoogleTest)
 gtest_discover_tests(core_tests)
+
+
+
+#Database (Postgres) Testing 
+
+add_executable(postgres_tests
+    postgres_test.cpp
+)
+
+target_link_libraries(postgres_tests
+    PRIVATE
+        tradevault_core
+        GTest::gtest_main
+        libpqxx::pqxx
+)
+
+target_compile_definitions(postgres_tests
+    PRIVATE
+        PQXX_SHARED
+)
+
+gtest_discover_tests(postgres_tests)
 
 #API Testing 
 add_executable(api_tests

@@ -4,7 +4,7 @@ add_library(tradevault_core
     core/TradeError.cpp
     core/InMemoryTradeRepository.cpp
     core/TradeService.cpp
-    src/PostgresTradeRepository.cpp
+    db/PostgresTradeRepository.cpp
 )
 
 target_include_directories(tradevault_core
@@ -28,4 +28,9 @@ target_link_libraries(tradevault_api
         tradevault_core
         tradevault_warnings
         Drogon::Drogon
+)
+
+target_compile_definitions(tradevault_core
+    PRIVATE
+        PQXX_SHARED
 )

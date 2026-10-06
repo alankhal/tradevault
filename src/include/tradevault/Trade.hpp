@@ -24,10 +24,27 @@ class Trade {
         int m_quantity; 
         std::chrono::system_clock::time_point m_clock; // Contain Date, Hours, Minutes and Seconds in military time format, written in UTC time format 
 
+        //
+        Trade(
+            unsigned tradeId,
+            std::string instrument,
+            std::string counterparty,
+            TradeSide side,
+            TradeStatus status,
+            double price,
+            int quantity,
+            std::chrono::system_clock::time_point timestamp
+        );
+
+
+
     public: 
         //Rule of 0 operations as this class does not manually manage any resouces  
             Trade(const std::string& instrument, const std::string& counterparty, TradeSide side, double price, int quantity); 
         
+            static Trade fromPersistence(unsigned tradeId,std::string instrument, std::string counterparty, TradeSide side, TradeStatus status, double price, int quantity,
+            std::chrono::system_clock::time_point timestamp);
+
 
         //Getters for values
         unsigned getTradeId() const;
