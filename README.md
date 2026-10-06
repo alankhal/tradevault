@@ -30,10 +30,6 @@ Each milestone of this project takes one of those requirements and the technolog
 | Durable, consistent records | **PostgreSQL** with transactions, constraints, and versioned migrations (the same SQL skills apply to SQL Server and Oracle) | M3 |
 | Identical environments everywhere | **Docker** and **Docker Compose** | M4 |
 | No untested code in production | **GitHub Actions** CI, **GoogleTest**, static analysis, image scanning | M0–M4 |
-| Passing trades to downstream systems | **Kafka**-compatible event streaming (Redpanda) with the transactional outbox pattern | M5 (planned) |
-| Seeing what a live system is doing | **Prometheus**, **Grafana**, **OpenTelemetry** | M6 (planned) |
-| Knowing the system's limits | **k6** load testing, sanitizers | M7 (planned) |
-| Repeatable infrastructure | **Terraform** | M8 (planned) |
 
 This is a learning project modeled on publicly described trade-capture systems and industry practice. It is not a copy of any bank's internal code.
 
