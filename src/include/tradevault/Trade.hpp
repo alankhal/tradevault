@@ -14,7 +14,6 @@ enum class TradeStatus { Booked, Cancelled };
 class Trade {
     private:
         //All varaibles that would be listed in Trade must be stated in private in order to avoid trade fabrication from the rest of the program
-        static inline unsigned m_nextId = 1;  // Initialized at 1 in the header, no need to restate it in class, easier to increment 
         unsigned tradeId_; //unsigned used in order to give approximetly 4 billion ID's, in additition to not being a negative number 
         std::string m_instrument;
         std::string m_counterparty;

@@ -28,6 +28,7 @@ target_link_libraries(tradevault_api
         tradevault_core
         tradevault_warnings
         Drogon::Drogon
+        libpqxx::pqxx
 )
 
 target_compile_definitions(tradevault_core

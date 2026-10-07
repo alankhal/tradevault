@@ -2,16 +2,18 @@
 #include <utility>
 
 //Initial Constructor/Initilization list 
-Trade::Trade(const std::string& instrument, const std::string& counterparty, TradeSide side,
-             double price, int quantity)
-    : tradeId_(m_nextId++),
+Trade::Trade(const std::string& instrument, const std::string& counterparty, TradeSide side, double price, int quantity)
+    // ID 0 means this Trade has not been persisted yet.
+    // The repository/database will assign the permanent ID.
+    : tradeId_(0),
       m_instrument(instrument),
       m_counterparty(counterparty),
       m_side(side),
       m_status(TradeStatus::Booked),
       m_price(price),
       m_quantity(quantity),
-      m_clock(std::chrono::system_clock::now()) {}
+      m_clock(std::chrono::system_clock::now())
+{}
 
 //Recounstruction constructor 
 Trade::Trade(

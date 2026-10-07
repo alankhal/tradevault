@@ -10,7 +10,7 @@ class TradeRepository {
  
     public: 
     // Store 
-    virtual void storeTrade(const Trade& other) = 0; 
+    virtual Trade storeTrade(const Trade& trade) = 0;
 
     // The purpose of using std::optional is because it can return nothing if there is nothing within the return value put, this prevents possible errors and allows us to place an if statement for when !trade
     virtual std::optional<Trade> getTrade(unsigned tradeId) const = 0; 

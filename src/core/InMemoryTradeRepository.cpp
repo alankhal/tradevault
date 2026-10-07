@@ -2,8 +2,23 @@
 
 
 // Store
-void InMemoryTradeRepository::storeTrade(const Trade& trade) { 
-	m_trades.push_back(trade);  
+Trade InMemoryTradeRepository::storeTrade(const Trade& trade)
+{
+    // In-memory storage acts like the database and assigns the ID.
+    Trade storedTrade = Trade::fromPersistence(
+        m_nextId++,
+        trade.getInstrument(),
+        trade.getCounterparty(),
+        trade.getSide(),
+        trade.getStatus(),
+        trade.getPrice(),
+        trade.getQuantity(),
+        trade.getTimestamp()
+    );
+
+    m_trades.push_back(storedTrade);
+
+    return storedTrade;
 }
 
 // Find 

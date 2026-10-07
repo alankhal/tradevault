@@ -3,20 +3,39 @@
 #include <iostream>
 #include <memory>
 #include <tuple>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 #include "api/TradeController.hpp"
-#include "tradevault/InMemoryTradeRepository.hpp"
 #include "tradevault/TradeService.hpp"
+#include "tradevault/PostgresTradeRepository.hpp"
 
 int main()
 {
+    // Read the PostgreSQL connection information from the environment variable.
+    const char* dbConnection =
+        std::getenv("TRADEVAULT_DB_CONNECTION");
+
+    // Stop startup if the database connection information was not provided.
+    if (dbConnection == nullptr)
+    {
+        throw std::runtime_error(
+            "TRADEVAULT_DB_CONNECTION environment variable is not set"
+        );
+    }
+
+    // Convert the environment variable into a std::string.
+    const std::string connectionString{dbConnection};
+
     // Load Drogon configuration
     drogon::app().loadConfigFile("config/config.json");
 
     // Register /healthz endpoint
     drogon::app().registerHandler(
         "/healthz",
-        [](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback)
+        [](const drogon::HttpRequestPtr&,
+           std::function<void(const drogon::HttpResponsePtr&)>&& callback)
         {
             Json::Value json;
             json["status"] = "ok";
@@ -29,14 +48,15 @@ int main()
         {drogon::Get}
     );
 
-    // 1. Create repository
-    InMemoryTradeRepository repository;
+    // 1. Create PostgreSQL repository
+    PostgresTradeRepository repository{connectionString};
 
     // 2. Inject repository into TradeService
-    TradeService service(repository);
+    TradeService service{repository};
 
-    // 3. Inject TradeService into TradeController    //Doudble check if shared pointer is the best option here? 
-    auto controller = std::make_shared<TradeController>(service); 
+    // 3. Inject TradeService into TradeController
+    // Double check if shared pointer is the best option here?
+    auto controller = std::make_shared<TradeController>(service);
 
     // 4. Register TradeController with Drogon
     drogon::app().registerController(controller);
