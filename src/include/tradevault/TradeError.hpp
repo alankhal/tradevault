@@ -1,3 +1,4 @@
+//Contains the trade Errors and decides whether trade input is valid
 #pragma once
 
 #include <string>

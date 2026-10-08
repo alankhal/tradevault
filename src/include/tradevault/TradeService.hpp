@@ -1,3 +1,5 @@
+// The business/application logic and TradeError handling
+
 //Offers typical functions within a stock microservice that allows the user to create, get, list and cancel there trades 
 //Combines all of the features we have established thus far
 

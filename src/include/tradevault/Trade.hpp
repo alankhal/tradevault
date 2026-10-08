@@ -1,3 +1,4 @@
+//Represents One trade and its domain state
 #pragma once
 
 #include <string>

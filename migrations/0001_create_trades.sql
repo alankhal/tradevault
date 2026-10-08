@@ -1,7 +1,7 @@
 --PostgreSQL constratins needed to protect stored data 
 CREATE TABLE IF NOT EXISTS trades
 (
-    trade_id       BIGINT PRIMARY KEY, --Requires primary key as each id is unique
+    trade_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, --Generated always essentially means generate the next trade ID automatically 
     instrument     TEXT NOT NULL, --Requires NOTNULL as instrument is needed for trade 
     counterparty   TEXT NOT NULL,
     side           TEXT NOT NULL CHECK (side IN ('Buy', 'Sell')), --Since side is an enum within my C++ files, going to have to make buy and sell stored as text for simplicity 

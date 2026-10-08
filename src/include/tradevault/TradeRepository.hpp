@@ -1,3 +1,4 @@
+//The abstract storage contract
 //This will be used as the base/interface class for this project for other files
 
 #pragma once

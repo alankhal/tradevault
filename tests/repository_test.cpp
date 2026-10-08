@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-//See if proper Trade object is built as well as repository methods 
+// Tests that a proper Trade object is stored and can be retrieved from the repository
 TEST(InMemoryTradeRepositoryTest, StoresAndRetrievesTrade)
 {
     InMemoryTradeRepository repository;
@@ -16,33 +16,39 @@ TEST(InMemoryTradeRepositoryTest, StoresAndRetrievesTrade)
         100
     );
 
-    repository.storeTrade(trade);
+    // storeTrade assigns the permanent repository ID and returns the stored Trade
+    Trade storedTrade = repository.storeTrade(trade);
 
-    auto result = repository.getTrade(trade.getTradeId());
+    // Use the stored Trade's ID because the original Trade still has temporary ID 0
+    auto result = repository.getTrade(storedTrade.getTradeId());
 
-    //ASSERT used as if it fails it will stop the test immediatley 
+    // ASSERT is used because if this fails, the test stops immediately
+    // We cannot safely check the Trade fields below if no Trade was returned
     ASSERT_TRUE(result.has_value());
 
-    //EXPECT used in order to check the condition but continue running the rest of the test if it fails 
-    EXPECT_EQ(result->getTradeId(), trade.getTradeId());
-    EXPECT_EQ(result->getInstrument(), trade.getInstrument());
-    EXPECT_EQ(result->getCounterparty(), trade.getCounterparty());
-    EXPECT_EQ(result->getSide(), trade.getSide());
-    EXPECT_DOUBLE_EQ(result->getPrice(), trade.getPrice());
-    EXPECT_EQ(result->getQuantity(), trade.getQuantity());
+    // EXPECT checks each condition but continues running the rest of the test if one fails
+    EXPECT_EQ(result->getTradeId(), storedTrade.getTradeId());
+    EXPECT_EQ(result->getInstrument(), storedTrade.getInstrument());
+    EXPECT_EQ(result->getCounterparty(), storedTrade.getCounterparty());
+    EXPECT_EQ(result->getSide(), storedTrade.getSide());
+    EXPECT_DOUBLE_EQ(result->getPrice(), storedTrade.getPrice());
+    EXPECT_EQ(result->getQuantity(), storedTrade.getQuantity());
 }
 
-//Purposeful Failed Test that is missing a trade 
+
+// Purposeful failed lookup test using an ID that does not exist
 TEST(InMemoryTradeRepositoryTest, ReturnsNulloptForMissingTrade)
 {
     InMemoryTradeRepository repository;
 
     auto result = repository.getTrade(999999);
 
+    // A missing Trade should return std::nullopt
     EXPECT_FALSE(result.has_value());
 }
 
-//Tests an Empty List 
+
+// Tests that an empty repository returns an empty list
 TEST(InMemoryTradeRepositoryTest, ListsZeroTradesWhenRepositoryIsEmpty)
 {
     InMemoryTradeRepository repository;
@@ -52,7 +58,8 @@ TEST(InMemoryTradeRepositoryTest, ListsZeroTradesWhenRepositoryIsEmpty)
     EXPECT_TRUE(trades.empty());
 }
 
-//Several Trades being Tested 
+
+// Tests that several stored Trades can all be returned from the repository
 TEST(InMemoryTradeRepositoryTest, ListsAllStoredTrades)
 {
     InMemoryTradeRepository repository;
@@ -73,19 +80,21 @@ TEST(InMemoryTradeRepositoryTest, ListsAllStoredTrades)
         50
     );
 
-    repository.storeTrade(firstTrade);
-    repository.storeTrade(secondTrade);
+    // Capture the stored versions because the repository assigns their permanent IDs
+    Trade storedFirstTrade = repository.storeTrade(firstTrade);
+    Trade storedSecondTrade = repository.storeTrade(secondTrade);
 
     auto trades = repository.listTrades();
 
     ASSERT_EQ(trades.size(), 2u);
 
-    EXPECT_EQ(trades[0].getTradeId(), firstTrade.getTradeId());
-    EXPECT_EQ(trades[1].getTradeId(), secondTrade.getTradeId());
+    // Compare against the stored Trades rather than the original temporary Trades
+    EXPECT_EQ(trades[0].getTradeId(), storedFirstTrade.getTradeId());
+    EXPECT_EQ(trades[1].getTradeId(), storedSecondTrade.getTradeId());
 }
 
 
-//updateTrade() test to see if it operates accordingly 
+// Tests updateTrade() to make sure an existing stored Trade is updated correctly
 TEST(InMemoryTradeRepositoryTest, UpdatesExistingTrade)
 {
     InMemoryTradeRepository repository;
@@ -98,15 +107,18 @@ TEST(InMemoryTradeRepositoryTest, UpdatesExistingTrade)
         100
     );
 
-    repository.storeTrade(trade);
+    // Capture the stored Trade because it now contains the repository-assigned ID
+    Trade storedTrade = repository.storeTrade(trade);
 
-    Trade updatedTrade = trade;
+    // Create a copy of the persisted Trade so the correct ID is preserved
+    Trade updatedTrade = storedTrade;
 
     updatedTrade.markCancelled();
 
+    // Update the existing repository entry using its permanent ID
     repository.updateTrade(updatedTrade);
 
-    auto result = repository.getTrade(trade.getTradeId());
+    auto result = repository.getTrade(storedTrade.getTradeId());
 
     ASSERT_TRUE(result.has_value());
 
@@ -114,7 +126,7 @@ TEST(InMemoryTradeRepositoryTest, UpdatesExistingTrade)
 }
 
 
-//Testing Binary Search Boundaries 
+// Tests the first, middle, and last positions used by the repository's binary search
 TEST(InMemoryTradeRepositoryTest, FindsTradesAtBinarySearchBoundaries)
 {
     InMemoryTradeRepository repository;
@@ -143,11 +155,13 @@ TEST(InMemoryTradeRepositoryTest, FindsTradesAtBinarySearchBoundaries)
         25
     );
 
-    repository.storeTrade(first);
-    repository.storeTrade(middle);
-    repository.storeTrade(last);
+    // Capture each stored Trade so we have the IDs assigned by the repository
+    Trade storedFirst = repository.storeTrade(first);
+    Trade storedMiddle = repository.storeTrade(middle);
+    Trade storedLast = repository.storeTrade(last);
 
-    EXPECT_TRUE(repository.getTrade(first.getTradeId()).has_value());
-    EXPECT_TRUE(repository.getTrade(middle.getTradeId()).has_value());
-    EXPECT_TRUE(repository.getTrade(last.getTradeId()).has_value());
+    // Confirm that binary search can find Trades at all important boundaries
+    EXPECT_TRUE(repository.getTrade(storedFirst.getTradeId()).has_value());
+    EXPECT_TRUE(repository.getTrade(storedMiddle.getTradeId()).has_value());
+    EXPECT_TRUE(repository.getTrade(storedLast.getTradeId()).has_value());
 }

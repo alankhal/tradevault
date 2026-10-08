@@ -1,19 +1,57 @@
 #include <gtest/gtest.h>
 
+#include "tradevault/PostgresConnectionPool.hpp"
 #include "tradevault/PostgresTradeRepository.hpp"
 #include "tradevault/Trade.hpp"
 
 #include <pqxx/pqxx>
 
+#include <chrono>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
-//Testing if store trade works accordingly 
+
+namespace
+{
+    // Gets the same PostgreSQL connection string used by the main application.
+    // This prevents database credentials from being hard-coded into the test file.
+    std::string getConnectionString()
+    {
+        const char* dbConnection =
+            std::getenv("TRADEVAULT_DB_CONNECTION");
+
+        if (dbConnection == nullptr)
+        {
+            throw std::runtime_error(
+                "TRADEVAULT_DB_CONNECTION environment variable is not set"
+            );
+        }
+
+        return std::string{dbConnection};
+    }
+}
+
+
+// Testing if storeTrade works accordingly
 TEST(PostgresTradeRepositoryTest, StoresTrade)
 {
     const std::string connectionString =
-        "dbname=tradevault user=postgres password=kX7mP2wN5v. host=localhost port=5432";
+        getConnectionString();
 
-    PostgresTradeRepository repository{connectionString};
+    // Creates a small pool of reusable PostgreSQL connections for this test.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
 
+    // The repository now borrows connections from the pool instead of
+    // creating a new PostgreSQL connection for every repository operation.
+    PostgresTradeRepository repository{
+        connectionPool
+    };
+
+    // This Trade begins with ID 0 because it has not yet been stored.
     Trade trade{
         "AAPL",
         "Goldman Sachs",
@@ -22,48 +60,77 @@ TEST(PostgresTradeRepositoryTest, StoresTrade)
         100
     };
 
-    // Remove an existing row from an earlier test run.
-    {
-        pqxx::connection connection{connectionString};
-        pqxx::work transaction{connection};
+    // PostgreSQL stores the Trade, generates the permanent ID,
+    // and the repository returns the persisted Trade.
+    Trade storedTrade =
+        repository.storeTrade(trade);
 
-        transaction.exec(
-            "DELETE FROM trades WHERE trade_id = $1",
-            pqxx::params{trade.getTradeId()}
-        );
+    // Query PostgreSQL directly using the ID that PostgreSQL generated.
+    // A direct connection is used here so the test independently verifies
+    // what was actually written to the database.
+    pqxx::connection connection{
+        connectionString
+    };
 
-        transaction.commit();
-    }
-
-    // Store the trade in PostgreSQL.
-    repository.storeTrade(trade);
-
-    // Query PostgreSQL directly to verify the insertion.
-    pqxx::connection connection{connectionString};
-    pqxx::work transaction{connection};
+    pqxx::work transaction{
+        connection
+    };
 
     const auto result = transaction.exec(
         "SELECT trade_id, instrument, counterparty, side, status, price, quantity "
         "FROM trades WHERE trade_id = $1",
-        pqxx::params{trade.getTradeId()}
+        pqxx::params{
+            storedTrade.getTradeId()
+        }
     );
 
     ASSERT_EQ(result.size(), 1);
 
-    const auto row = result[0];
+    const auto row =
+        result[0];
 
-    EXPECT_EQ(row["trade_id"].as<unsigned>(), trade.getTradeId());
-    EXPECT_EQ(row["instrument"].as<std::string>(), trade.getInstrument());
-    EXPECT_EQ(row["counterparty"].as<std::string>(), trade.getCounterparty());
-    EXPECT_EQ(row["side"].as<std::string>(), "Buy");
-    EXPECT_EQ(row["status"].as<std::string>(), "Booked");
-    EXPECT_EQ(row["price"].as<double>(), trade.getPrice());
-    EXPECT_EQ(row["quantity"].as<int>(), trade.getQuantity());
+    // Confirm that PostgreSQL contains the same values as the persisted Trade.
+    EXPECT_EQ(
+        row["trade_id"].as<unsigned>(),
+        storedTrade.getTradeId()
+    );
 
-    // Clean up the inserted trade.
+    EXPECT_EQ(
+        row["instrument"].as<std::string>(),
+        storedTrade.getInstrument()
+    );
+
+    EXPECT_EQ(
+        row["counterparty"].as<std::string>(),
+        storedTrade.getCounterparty()
+    );
+
+    EXPECT_EQ(
+        row["side"].as<std::string>(),
+        "Buy"
+    );
+
+    EXPECT_EQ(
+        row["status"].as<std::string>(),
+        "Booked"
+    );
+
+    EXPECT_EQ(
+        row["price"].as<double>(),
+        storedTrade.getPrice()
+    );
+
+    EXPECT_EQ(
+        row["quantity"].as<int>(),
+        storedTrade.getQuantity()
+    );
+
+    // Clean up the inserted Trade using its permanent database ID.
     transaction.exec(
         "DELETE FROM trades WHERE trade_id = $1",
-        pqxx::params{trade.getTradeId()}
+        pqxx::params{
+            storedTrade.getTradeId()
+        }
     );
 
     transaction.commit();
@@ -73,9 +140,18 @@ TEST(PostgresTradeRepositoryTest, StoresTrade)
 TEST(PostgresTradeRepositoryTest, RetrievesStoredTrade)
 {
     const std::string connectionString =
-        "dbname=tradevault user=postgres password=kX7mP2wN5v. host=localhost port=5432";
+        getConnectionString();
 
-    PostgresTradeRepository repository{connectionString};
+    // Creates reusable PostgreSQL connections for this test.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
+
+    // Repository uses the shared pool for its database work.
+    PostgresTradeRepository repository{
+        connectionPool
+    };
 
     Trade trade{
         "AAPL",
@@ -85,61 +161,103 @@ TEST(PostgresTradeRepositoryTest, RetrievesStoredTrade)
         100
     };
 
-    // Remove a row with the same ID in case it exists from an earlier test run.
-    {
-        pqxx::connection connection{connectionString};
-        pqxx::work transaction{connection};
+    // Store the Trade and capture the persisted version containing
+    // the permanent ID generated by PostgreSQL.
+    Trade storedTrade =
+        repository.storeTrade(trade);
 
-        transaction.exec(
-            "DELETE FROM trades WHERE trade_id = $1",
-            pqxx::params{trade.getTradeId()}
+    // Retrieve the same Trade using its permanent database ID.
+    const auto retrievedTrade =
+        repository.getTrade(
+            storedTrade.getTradeId()
         );
 
-        transaction.commit();
-    }
-
-    // Store the Trade using the PostgreSQL repository.
-    repository.storeTrade(trade);
-
-    // Retrieve the same Trade using getTrade().
-    const auto retrievedTrade = repository.getTrade(trade.getTradeId());
-
     // Make sure getTrade() actually returned a Trade.
-    ASSERT_TRUE(retrievedTrade.has_value());
+    ASSERT_TRUE(
+        retrievedTrade.has_value()
+    );
 
-    // Verify that the reconstructed Trade contains the original stored values.
-    EXPECT_EQ(retrievedTrade->getTradeId(), trade.getTradeId());
-    EXPECT_EQ(retrievedTrade->getInstrument(), trade.getInstrument());
-    EXPECT_EQ(retrievedTrade->getCounterparty(), trade.getCounterparty());
-    EXPECT_EQ(retrievedTrade->getSide(), trade.getSide());
-    EXPECT_EQ(retrievedTrade->getStatus(), trade.getStatus());
-    EXPECT_DOUBLE_EQ(retrievedTrade->getPrice(), trade.getPrice());
-    EXPECT_EQ(retrievedTrade->getQuantity(), trade.getQuantity());
+    // Verify that the reconstructed Trade contains the stored values.
+    EXPECT_EQ(
+        retrievedTrade->getTradeId(),
+        storedTrade.getTradeId()
+    );
+
+    EXPECT_EQ(
+        retrievedTrade->getInstrument(),
+        storedTrade.getInstrument()
+    );
+
+    EXPECT_EQ(
+        retrievedTrade->getCounterparty(),
+        storedTrade.getCounterparty()
+    );
+
+    EXPECT_EQ(
+        retrievedTrade->getSide(),
+        storedTrade.getSide()
+    );
+
+    EXPECT_EQ(
+        retrievedTrade->getStatus(),
+        storedTrade.getStatus()
+    );
+
+    EXPECT_DOUBLE_EQ(
+        retrievedTrade->getPrice(),
+        storedTrade.getPrice()
+    );
+
+    EXPECT_EQ(
+        retrievedTrade->getQuantity(),
+        storedTrade.getQuantity()
+    );
 
     // PostgreSQL stores our timestamp at microsecond precision,
     // so compare both timestamps after flooring them to microseconds.
     EXPECT_EQ(
-        std::chrono::floor<std::chrono::microseconds>(retrievedTrade->getTimestamp()),
-        std::chrono::floor<std::chrono::microseconds>(trade.getTimestamp())
+        std::chrono::floor<std::chrono::microseconds>(
+            retrievedTrade->getTimestamp()
+        ),
+        std::chrono::floor<std::chrono::microseconds>(
+            storedTrade.getTimestamp()
+        )
     );
 
-    // Clean up the row after the test.
-    pqxx::connection connection{connectionString};
-    pqxx::work transaction{connection};
+    // Clean up the row after the test using a direct database connection.
+    pqxx::connection connection{
+        connectionString
+    };
+
+    pqxx::work transaction{
+        connection
+    };
 
     transaction.exec(
         "DELETE FROM trades WHERE trade_id = $1",
-        pqxx::params{trade.getTradeId()}
+        pqxx::params{
+            storedTrade.getTradeId()
+        }
     );
 
     transaction.commit();
 }
 
+
 TEST(PostgresTradeRepositoryTest, ListsStoredTrades)
 {
-    const std::string connectionString = "dbname=tradevault user=postgres password=kX7mP2wN5v. host=localhost port=5432";
+    const std::string connectionString = getConnectionString();
 
-    PostgresTradeRepository repository{connectionString};
+    // Creates reusable PostgreSQL connections for this test.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
+
+    // Repository borrows connections from the pool.
+    PostgresTradeRepository repository{
+        connectionPool
+    };
 
     Trade trade1{
         "AAPL",
@@ -157,69 +275,86 @@ TEST(PostgresTradeRepositoryTest, ListsStoredTrades)
         50
     };
 
-    // Remove these IDs if they remain from an earlier test run.
-    {
-        pqxx::connection connection{connectionString};
-        pqxx::work transaction{connection};
+    // Store both Trades and capture the versions containing
+    // the permanent IDs generated by PostgreSQL.
+    Trade storedTrade1 =
+        repository.storeTrade(trade1);
 
-        transaction.exec(
-            "DELETE FROM trades WHERE trade_id = $1 OR trade_id = $2",
-            pqxx::params{
-                trade1.getTradeId(),
-                trade2.getTradeId()
-            }
-        );
+    Trade storedTrade2 =
+        repository.storeTrade(trade2);
 
-        transaction.commit();
-    }
-
-    // Store both trades.
-    repository.storeTrade(trade1);
-    repository.storeTrade(trade2);
-
-    // Retrieve every trade currently stored in PostgreSQL.
-    const auto trades = repository.listTrades();
+    // Retrieve every Trade currently stored in PostgreSQL.
+    const auto trades =
+        repository.listTrades();
 
     bool foundTrade1 = false;
     bool foundTrade2 = false;
 
-    // Check that both of the trades we inserted appear in the returned vector.
+    // Check that both Trades we inserted appear in the returned vector
+    // by comparing their permanent database IDs.
     for (const auto& trade : trades)
     {
-        if (trade.getTradeId() == trade1.getTradeId())
+        if (
+            trade.getTradeId() ==
+            storedTrade1.getTradeId()
+        )
         {
             foundTrade1 = true;
         }
 
-        if (trade.getTradeId() == trade2.getTradeId())
+        if (
+            trade.getTradeId() ==
+            storedTrade2.getTradeId()
+        )
         {
             foundTrade2 = true;
         }
     }
 
-    EXPECT_TRUE(foundTrade1);
-    EXPECT_TRUE(foundTrade2);
+    EXPECT_TRUE(
+        foundTrade1
+    );
 
-    // Clean up the inserted rows.
-    pqxx::connection connection{connectionString};
-    pqxx::work transaction{connection};
+    EXPECT_TRUE(
+        foundTrade2
+    );
+
+    // Clean up both inserted rows using their database-generated IDs.
+    pqxx::connection connection{
+        connectionString
+    };
+
+    pqxx::work transaction{
+        connection
+    };
 
     transaction.exec(
         "DELETE FROM trades WHERE trade_id = $1 OR trade_id = $2",
         pqxx::params{
-            trade1.getTradeId(),
-            trade2.getTradeId()
+            storedTrade1.getTradeId(),
+            storedTrade2.getTradeId()
         }
     );
 
     transaction.commit();
 }
 
+
 TEST(PostgresTradeRepositoryTest, UpdatesStoredTrade)
 {
-    const std::string connectionString = "dbname=tradevault user=postgres password=kX7mP2wN5v. host=localhost port=5432";
+    const std::string connectionString =
+        getConnectionString();
 
-    PostgresTradeRepository repository{connectionString};
+    // Creates reusable PostgreSQL connections for this test.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
+
+    // Repository uses the connection pool for database operations.
+    PostgresTradeRepository repository{
+        connectionPool
+    };
 
     Trade trade{
         "AAPL",
@@ -229,61 +364,92 @@ TEST(PostgresTradeRepositoryTest, UpdatesStoredTrade)
         100
     };
 
-    // Remove the same ID if it was left behind by an earlier test run.
-    {
-        pqxx::connection connection{connectionString};
-        pqxx::work transaction{connection};
+    // Store the original Trade and capture the version containing
+    // PostgreSQL's permanent ID.
+    Trade storedTrade =
+        repository.storeTrade(trade);
 
-        transaction.exec(
-            "DELETE FROM trades WHERE trade_id = $1",
-            pqxx::params{trade.getTradeId()}
-        );
+    EXPECT_EQ(
+        storedTrade.getStatus(),
+        TradeStatus::Booked
+    );
 
-        transaction.commit();
-    }
+    // Change the persisted Trade's status in C++.
+    // We modify storedTrade instead of trade because storedTrade
+    // contains the permanent database ID.
+    ASSERT_TRUE(
+        storedTrade.markCancelled()
+    );
 
-    // Store the original Booked trade.
-    repository.storeTrade(trade);
-
-    EXPECT_EQ(trade.getStatus(), TradeStatus::Booked);
-
-    // Change the Trade's status in C++.
-    ASSERT_TRUE(trade.markCancelled());
-
-    EXPECT_EQ(trade.getStatus(), TradeStatus::Cancelled);
+    EXPECT_EQ(
+        storedTrade.getStatus(),
+        TradeStatus::Cancelled
+    );
 
     // Persist the changed Trade back into PostgreSQL.
-    repository.updateTrade(trade);
+    repository.updateTrade(
+        storedTrade
+    );
 
-    // Read the Trade back from PostgreSQL.
-    const auto updatedTrade = repository.getTrade(trade.getTradeId());
+    // Read the same Trade back using its permanent ID.
+    const auto updatedTrade =
+        repository.getTrade(
+            storedTrade.getTradeId()
+        );
 
-    ASSERT_TRUE(updatedTrade.has_value());
+    ASSERT_TRUE(
+        updatedTrade.has_value()
+    );
 
     // Confirm that PostgreSQL now contains the updated status.
-    EXPECT_EQ(updatedTrade->getStatus(), TradeStatus::Cancelled);
+    EXPECT_EQ(
+        updatedTrade->getStatus(),
+        TradeStatus::Cancelled
+    );
 
     // Confirm that the Trade ID was not changed during the update.
-    EXPECT_EQ(updatedTrade->getTradeId(), trade.getTradeId());
+    EXPECT_EQ(
+        updatedTrade->getTradeId(),
+        storedTrade.getTradeId()
+    );
 
     // Clean up the row after the test.
-    pqxx::connection connection{connectionString};
-    pqxx::work transaction{connection};
+    pqxx::connection connection{
+        connectionString
+    };
+
+    pqxx::work transaction{
+        connection
+    };
 
     transaction.exec(
         "DELETE FROM trades WHERE trade_id = $1",
-        pqxx::params{trade.getTradeId()}
+        pqxx::params{
+            storedTrade.getTradeId()
+        }
     );
 
     transaction.commit();
 }
 
+
 TEST(PostgresTradeRepositoryTest, ThrowsWhenUpdatingMissingTrade)
 {
-    const std::string connectionString = "dbname=tradevault user=postgres password=kX7mP2wN5v. host=localhost port=5432";
+    const std::string connectionString =
+        getConnectionString();
 
-    PostgresTradeRepository repository{connectionString};
+    // Creates reusable PostgreSQL connections for this test.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
 
+    // Repository now uses the pool for updateTrade().
+    PostgresTradeRepository repository{
+        connectionPool
+    };
+
+    // A newly created Trade has ID 0 because it has never been persisted.
     Trade trade{
         "AAPL",
         "Goldman Sachs",
@@ -292,22 +458,115 @@ TEST(PostgresTradeRepositoryTest, ThrowsWhenUpdatingMissingTrade)
         100
     };
 
-    // Make sure this Trade ID does not already exist in PostgreSQL.
-    {
-        pqxx::connection connection{connectionString};
-        pqxx::work transaction{connection};
-
-        transaction.exec(
-            "DELETE FROM trades WHERE trade_id = $1",
-            pqxx::params{trade.getTradeId()}
-        );
-
-        transaction.commit();
-    }
-
-    // updateTrade() should fail because no PostgreSQL row has this ID.
+    // PostgreSQL-generated IDs begin at 1, so there should be no row
+    // corresponding to this unpersisted Trade's ID of 0.
+    // updateTrade() should therefore throw an error.
     EXPECT_THROW(
         repository.updateTrade(trade),
         std::runtime_error
+    );
+}
+
+
+// Tests that a connection borrowed from the pool is returned
+// and can be reused after the shared_ptr goes out of scope.
+TEST(PostgresConnectionPoolTest, ReusesReturnedConnection)
+{
+    const std::string connectionString =
+        getConnectionString();
+
+    // Use a pool of one so the same connection must be reused.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        1
+    };
+
+    pqxx::connection* firstConnectionAddress = nullptr;
+
+    {
+        // Borrow the only available connection.
+        auto connection =
+            connectionPool.acquire();
+
+        ASSERT_NE(
+            connection,
+            nullptr
+        );
+
+        EXPECT_TRUE(
+            connection->is_open()
+        );
+
+        // Remember the actual connection object's address.
+        firstConnectionAddress =
+            connection.get();
+
+        // When this scope ends, the connection should automatically
+        // be returned to the pool instead of being destroyed.
+    }
+
+    // Borrow a connection again.
+    auto reusedConnection =
+        connectionPool.acquire();
+
+    ASSERT_NE(
+        reusedConnection,
+        nullptr
+    );
+
+    EXPECT_TRUE(
+        reusedConnection->is_open()
+    );
+
+    // Since the pool only contains one connection,
+    // we should receive the exact same connection back.
+    EXPECT_EQ(
+        reusedConnection.get(),
+        firstConnectionAddress
+    );
+}
+
+
+// Tests that a pool with multiple connections can provide
+// separate connections at the same time.
+TEST(PostgresConnectionPoolTest, ProvidesMultipleConnections)
+{
+    const std::string connectionString =
+        getConnectionString();
+
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        2
+    };
+
+    // Borrow both available connections.
+    auto firstConnection =
+        connectionPool.acquire();
+
+    auto secondConnection =
+        connectionPool.acquire();
+
+    ASSERT_NE(
+        firstConnection,
+        nullptr
+    );
+
+    ASSERT_NE(
+        secondConnection,
+        nullptr
+    );
+
+    EXPECT_TRUE(
+        firstConnection->is_open()
+    );
+
+    EXPECT_TRUE(
+        secondConnection->is_open()
+    );
+
+    // The pool should contain two separate PostgreSQL connection objects.
+    EXPECT_NE(
+        firstConnection.get(),
+        secondConnection.get()
     );
 }

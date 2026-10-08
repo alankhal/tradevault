@@ -4,17 +4,23 @@ add_library(tradevault_core
     core/TradeError.cpp
     core/InMemoryTradeRepository.cpp
     core/TradeService.cpp
+    db/PostgresConnectionPool.cpp
     db/PostgresTradeRepository.cpp
 )
 
 target_include_directories(tradevault_core
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(tradevault_core
-    PUBLIC spdlog::spdlog
-    PRIVATE tradevault_warnings
+    PUBLIC
+        spdlog::spdlog
+        libpqxx::pqxx
+    PRIVATE
+        tradevault_warnings
 )
+
 
 add_executable(tradevault_api
     ${PROJECT_SOURCE_DIR}/app/main.cpp
@@ -23,15 +29,16 @@ add_executable(tradevault_api
     api/HttpErrorMapper.cpp
 )
 
+# Allows app/main.cpp to find headers such as:
+# #include "api/TradeController.hpp"
+target_include_directories(tradevault_api
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(tradevault_api
     PRIVATE
         tradevault_core
         tradevault_warnings
         Drogon::Drogon
-        libpqxx::pqxx
-)
-
-target_compile_definitions(tradevault_core
-    PRIVATE
-        PQXX_SHARED
 )

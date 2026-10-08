@@ -8,8 +8,11 @@
 #include <string>
 
 #include "api/TradeController.hpp"
+
 #include "tradevault/TradeService.hpp"
+#include "tradevault/PostgresConnectionPool.hpp"
 #include "tradevault/PostgresTradeRepository.hpp"
+
 
 int main()
 {
@@ -17,21 +20,21 @@ int main()
     const char* dbConnection =
         std::getenv("TRADEVAULT_DB_CONNECTION");
 
-    // Stop startup if the database connection information was not provided.
+    // Stop startup if no database configuration was provided.
     if (dbConnection == nullptr)
     {
-        throw std::runtime_error(
-            "TRADEVAULT_DB_CONNECTION environment variable is not set"
-        );
+        throw std::runtime_error("TRADEVAULT_DB_CONNECTION environment variable is not set");
     }
 
-    // Convert the environment variable into a std::string.
+    // Convert the environment variable into a regular C++ string.
     const std::string connectionString{dbConnection};
 
-    // Load Drogon configuration
+
+    // Load Drogon configuration.
     drogon::app().loadConfigFile("config/config.json");
 
-    // Register /healthz endpoint
+
+    // Register /healthz endpoint.
     drogon::app().registerHandler(
         "/healthz",
         [](const drogon::HttpRequestPtr&,
@@ -41,6 +44,7 @@ int main()
             json["status"] = "ok";
 
             auto resp = drogon::HttpResponse::newHttpJsonResponse(json);
+
             resp->setStatusCode(drogon::k200OK);
 
             callback(resp);
@@ -48,26 +52,44 @@ int main()
         {drogon::Get}
     );
 
-    // 1. Create PostgreSQL repository
-    PostgresTradeRepository repository{connectionString};
 
-    // 2. Inject repository into TradeService
-    TradeService service{repository};
+    // 1. Create a small pool of reusable PostgreSQL connections.
+    // The connections are opened once when TradeVault starts.
+    PostgresConnectionPool connectionPool{
+        connectionString,
+        4                                       //4 means it is opening four PostgreSQL connections when the application starts 
+    };
 
-    // 3. Inject TradeService into TradeController
-    // Double check if shared pointer is the best option here?
+
+    // 2. Give the repository access to the shared connection pool.
+    // The repository now borrows connections instead of creating
+    // a brand-new PostgreSQL connection for every database operation.
+    PostgresTradeRepository repository{
+        connectionPool
+    };
+
+
+    // 3. Inject the repository into TradeService.
+    TradeService service{
+        repository
+    };
+
+
+    // 4. Inject TradeService into TradeController.
     auto controller = std::make_shared<TradeController>(service);
 
-    // 4. Register TradeController with Drogon
+
+    // 5. Register TradeController with Drogon.
     drogon::app().registerController(controller);
 
+
     // Temporary diagnostic:
-    // Print every route Drogon believes is registered
+    // Print every route Drogon believes is registered.
     for (const auto& handler : drogon::app().getHandlersInfo())
     {
         std::cout << "Registered route: " << std::get<0>(handler) << '\n';
     }
 
-    // Start the HTTP server
+    // Start the HTTP server.
     drogon::app().run();
 }
