@@ -271,16 +271,16 @@
         }
       },
 
-      "NotFound": {
-        "description": "Trade not found",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
+     "NotFound": {
+      "description": "Trade not found",
+       "content": {
+         "application/json": {
+           "schema": {
+             "$ref": "#/components/schemas/Problem"
+           }
+         }
+       }
+     },
 
       "Conflict": {
         "description": "Trade state conflicts with requested operation",

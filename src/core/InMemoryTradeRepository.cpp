@@ -26,9 +26,7 @@ Trade InMemoryTradeRepository::storeTrade(const Trade& trade)
 std::optional<Trade> InMemoryTradeRepository::getTrade(unsigned tradeId) const { 
 	
 	//Error handling to make sure there is no compile error 
-	if (m_trades.empty()) {
-		return std::nullopt; 
-	}
+	if (m_trades.empty()) {return std::nullopt;}
 	
 	int left = 0; 
 	int right = static_cast<int>(m_trades.size()) - 1;
