@@ -19,6 +19,13 @@ services:
       retries: 10
 
   api:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
     build:
       context: .
     image: tradevault-api:latest

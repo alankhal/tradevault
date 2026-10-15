@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -5,23 +6,28 @@ on:
   push:
     branches: [main]
 
-#For the time being removed formatting constraints as of now until POSTGRESQL is setup
 jobs:
-
+  # Build and test TradeVault on Windows and Linux
   build-and-test:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2022]
-    steps:
-      - uses: actions/checkout@v4
 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install Linux compilation dependencies
       - name: Install Linux build prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ninja-build bison flex pkg-config
 
+      # Configure the Windows compiler
       - name: Set up MSVC
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -30,6 +36,7 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ninja -y
 
+      # Install vcpkg for dependency management
       - name: Bootstrap vcpkg
         shell: bash
         env:
@@ -42,6 +49,7 @@ jobs:
             "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
           fi
 
+      # Configure and compile TradeVault
       - name: Configure
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -52,6 +60,7 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: cmake --build --preset debug
 
+      # Start a temporary database for Linux PostgreSQL tests
       - name: Start PostgreSQL for Linux tests
         if: runner.os == 'Linux'
         run: |
@@ -74,8 +83,7 @@ jobs:
           docker logs tradevault-ci-db
           exit 1
 
-
-      # Linux: Run all 52 tests against PostgreSQL
+      # Linux runs all 52 tests, including database integration tests
       - name: Test (Linux)
         if: runner.os == 'Linux'
         env:
@@ -83,40 +91,48 @@ jobs:
           TRADEVAULT_DB_CONNECTION: "dbname=tradevault user=postgres password=ci_only_test_password host=127.0.0.1 port=5432"
         run: ctest --preset debug --output-on-failure
 
-      # Windows: Run tests that don't require PostgreSQL
+      # Windows runs 45 tests, excluding PostgreSQL integration tests
       - name: Test (Windows)
         if: runner.os == 'Windows'
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-        run: ctest --preset debug -E "^(PostgresTradeRepositoryTest|PostgresConnectionPoolTest)\." --output-on-failure
-        
+        run: ctest --preset debug -E '^(PostgresTradeRepositoryTest|PostgresConnectionPoolTest)\.' --output-on-failure
+
+      # Remove temporary CI database
       - name: Clean up PostgreSQL
         if: always() && runner.os == 'Linux'
         run: docker rm -f tradevault-ci-db || true
 
-
+  # Run static analysis on C++ files
   static-analysis:
     name: clang-tidy
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang-tidy bison flex pkg-config
+
       - name: Bootstrap vcpkg
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: |
           git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
       - name: Configure
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: cmake --preset debug
+
       - name: Run clang-tidy
         run: |
           find src tests -name '*.cpp' -print0 | xargs -0 clang-tidy -p build/debug
 
-
+  # Verify the complete Docker Compose environment
   compose-integration:
     name: Docker Compose Integration Tests
     runs-on: ubuntu-24.04
@@ -143,3 +159,44 @@ jobs:
       - name: Stop Docker Compose
         if: always()
         run: docker compose down -v
+
+  publish-image:
+    name: Publish Docker Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    needs:
+      - build-and-test
+      - static-analysis
+      - compose-integration
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/alankhal/tradevault:latest
+            ghcr.io/alankhal/tradevault:sha-${{ github.sha }}
+          cache-from: type=gha,scope=tradevault
+          cache-to: type=gha,mode=max,scope=tradevault
