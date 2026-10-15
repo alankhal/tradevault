@@ -18,9 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Ninja (Linux)
+      - name: Install Linux build prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+        run: sudo apt-get update && sudo apt-get install -y ninja-build bison flex pkg-config
 
       - name: Set up MSVC
         if: runner.os == 'Windows'
@@ -52,10 +52,48 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
         run: cmake --build --preset debug
 
-      - name: Test
+      - name: Start PostgreSQL for Linux tests
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name tradevault-ci-db \
+            -e POSTGRES_DB=tradevault \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=ci_only_test_password \
+            -p 127.0.0.1:5432:5432 \
+            -v "$PWD/migrations/0001_create_trades.sql:/docker-entrypoint-initdb.d/0001_create_trades.sql:ro" \
+            postgres:16
+
+          for i in {1..30}; do
+            if docker exec tradevault-ci-db psql -U postgres -d tradevault -tAc "SELECT to_regclass('public.trades')" 2>/dev/null | grep -qx trades; then
+              echo "PostgreSQL schema is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs tradevault-ci-db
+          exit 1
+
+
+      # Linux: Run all 52 tests against PostgreSQL
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-        run: ctest --preset debug
+          TRADEVAULT_DB_CONNECTION: "dbname=tradevault user=postgres password=ci_only_test_password host=127.0.0.1 port=5432"
+        run: ctest --preset debug --output-on-failure
+
+      # Windows: Run tests that don't require PostgreSQL
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: ctest --preset debug -E "^(PostgresTradeRepositoryTest|PostgresConnectionPoolTest)\." --output-on-failure
+        
+      - name: Clean up PostgreSQL
+        if: always() && runner.os == 'Linux'
+        run: docker rm -f tradevault-ci-db || true
+
 
   static-analysis:
     name: clang-tidy
@@ -63,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y ninja-build clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang-tidy bison flex pkg-config
       - name: Bootstrap vcpkg
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -77,3 +115,31 @@ jobs:
       - name: Run clang-tidy
         run: |
           find src tests -name '*.cpp' -print0 | xargs -0 clang-tidy -p build/debug
+
+
+  compose-integration:
+    name: Docker Compose Integration Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    env:
+      TRADEVAULT_POSTGRES_PASSWORD: ci_only_test_password
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and start Docker Compose
+        run: docker compose up -d --build --wait
+
+      - name: Run API smoke tests
+        shell: pwsh
+        run: ./tests/compose_api_smoke.ps1
+
+      - name: Display logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=100
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down -v
