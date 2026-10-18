@@ -1,238 +1,350 @@
+
 # TradeVault — C++20 Trade-Capture Microservice
 
-![CI](https://github.com/alankhal/tradevault/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/alankhal/tradevault/actions/workflows/ci.yml/badge.svg)](https://github.com/alankhal/tradevault/actions/workflows/ci.yml)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue)
 
-TradeVault is a REST service that records financial trades (instrument, quantity, price, counterparty, timestamps), validates them against business rules, and stores them in PostgreSQL. The whole system starts with one `docker compose up`, and every pull request is built, tested, and scanned by CI before it can merge.
+TradeVault is a C++20 REST API for creating, retrieving, listing, and cancelling financial trades. It validates trade data, uses PostgreSQL for persistent storage, and runs in a Docker Compose environment. Automated GitHub Actions workflows build and test the service on Windows and Linux, verify the running containers, publish a Docker image, and scan that image for critical vulnerabilities.
 
-**Status: milestones M0–M4 of 9 are complete.** The service is a working, containerized, tested API with durable storage. Event publishing, observability, load testing, and cloud deployment are on the [roadmap](#roadmap).
+**Current progress:** Milestones M0–M4 are implemented. The service is containerized, backed by PostgreSQL, covered by automated tests, and published through GitHub Container Registry (GHCR). Additional trading-system features, observability, and deployment automation remain future work.
 
 ---
 
 ## Purpose
 
-I built TradeVault to learn how banks write the software behind their trading desks and which technologies those systems rely on.
+I built TradeVault to learn how financial institutions design and operate the services used to capture trades. The project focuses on C++ backend engineering, well-defined API boundaries, database consistency, automated testing, and container-based delivery.
 
-When a trader executes a deal, the trade has to be *captured*: recorded once, checked against business rules, stored durably, and passed on to the systems that handle risk, settlement, and compliance. Trade capture is a core part of that flow, and it carries requirements that ordinary web apps can usually relax:
+Trade capture involves more than accepting an HTTP request. A useful service must validate incoming data, persist it reliably, return understandable errors, and expose a stable interface to its clients. TradeVault explores these concerns incrementally rather than attempting to reproduce a production bank system.
 
-- **A trade must never be booked twice.** Networks fail and clients retry, so booking has to be idempotent.
-- **A trade must never be lost or half-written.** Every write has to be all-or-nothing.
-- **Every change must be traceable.** Regulators and auditors need to know what happened and when.
-- **The system has to keep running.** It has to be tested, monitored, and deployable without manual steps.
+| Engineering concern | Current approach |
+|---|---|
+| Domain rules | C++20 model, validation, and `TradeService` |
+| HTTP interface | Drogon REST controllers and JSON responses |
+| API documentation | OpenAPI 3 specification and Swagger UI |
+| Persistent storage | PostgreSQL 16 and libpqxx |
+| Storage abstraction | `TradeRepository` interface with PostgreSQL and in-memory implementations |
+| Database consistency | PostgreSQL constraints, parameterized queries, and transactions |
+| Reproducible environments | Multi-stage Dockerfile and Docker Compose |
+| Automated quality checks | GoogleTest, clang-tidy, API smoke tests, and GitHub Actions |
+| Image distribution and scanning | GHCR and Trivy |
 
-Each milestone of this project takes one of those requirements and the technology commonly used to meet it:
-
-| Requirement | Technology I used to learn it | Milestone |
-|---|---|---|
-| Fast, predictable services | **C++20**, the language much bank trading infrastructure is written in | M0–M2 |
-| A clear contract between systems | **REST + OpenAPI**, with standard error responses | M2 |
-| Durable, consistent records | **PostgreSQL** with transactions, constraints, and versioned migrations (the same SQL skills apply to SQL Server and Oracle) | M3 |
-| Identical environments everywhere | **Docker** and **Docker Compose** | M4 |
-| No untested code in production | **GitHub Actions** CI, **GoogleTest**, static analysis, image scanning | M0–M4 |
-
-This is a learning project modeled on publicly described trade-capture systems and industry practice. It is not a copy of any bank's internal code.
+This is a learning project informed by general financial-software engineering practices. It does not use or reproduce proprietary bank infrastructure.
 
 ---
 
-## Why it is built this way
+## Key design decisions
 
-Most of the decisions in this repo come from one goal: build a service the way a bank's engineering team would run it in production, not just code that works on one laptop.
+- **C++20 throughout the backend.** The service uses C++ for domain logic, persistence integration, and the HTTP application.
+- **Separation of responsibilities.** Controllers handle HTTP and JSON; `TradeService` handles domain operations; repositories handle storage.
+- **Dependency injection.** `TradeService` depends on a `TradeRepository` abstraction, allowing in-memory tests without a database.
+- **Explicit domain errors.** Service operations use `Result<T, E>` to represent expected successes and failures. HTTP error mapping translates domain errors into status codes and JSON responses.
+- **Database-generated trade IDs.** PostgreSQL assigns an integer ID when a trade is inserted. Clients do not supply the trade ID.
+- **Transactional database writes.** Trade inserts and updates use database transactions, and SQL values are passed as parameters rather than interpolated into query strings.
+- **Container health checks.** Docker Compose waits for PostgreSQL readiness and monitors the API's `/healthz` endpoint.
+- **Non-root runtime container.** The production image uses a multi-stage build and starts the application under an unprivileged account.
 
-| Decision | Why |
-|---|---|
-| **C++20 for a web service** | Much of the trading infrastructure at banks is written in C++. Writing the HTTP layer, persistence, and tooling in C++ (rather than reaching for Python) taught me how that ecosystem works end to end. |
-| **Contract first (OpenAPI before code)** | Clients get one documented contract, and the spec doubles as interactive docs through Swagger UI. The implementation is checked against the spec, not the other way around. |
-| **`Result<T, E>` instead of exceptions at the boundary** | Every failure path is visible in the function signature and has to be handled. No exception can escape to the HTTP layer as an unexplained 500. |
-| **Injected repository interface** | Business logic depends on `TradeRepository`, not on a database. That let me build and test the domain with an in-memory store first, then swap in PostgreSQL in M3 without changing the service. |
-| **Unique `trade_id` supplied by the client** | Network clients retry. A database constraint makes `POST` idempotent: a retried booking returns `409 Conflict` instead of booking the trade twice. |
-| **Prepared statements only** | User input is never concatenated into SQL, which closes off SQL injection by construction. |
-| **Versioned SQL migrations** | The schema is versioned in Git like the code, so any environment can be rebuilt to the same state. |
-| **Multi-stage, non-root Docker image** | The runtime image ships only the binary and its libraries, not the compiler, and does not run as root. |
-| **Healthcheck-gated startup** | The API waits until Postgres actually accepts connections, not merely until its container starts. |
-| **CI blocks merges** | `main` is protected, so nothing lands without a green build, passing tests, a clean lint, and an image scan. |
+**Current limitation:** Requests do not yet include an idempotency key or a client-supplied unique booking reference. Submitting the same `POST /trades` body again can create another trade. Deduplication and retry-safe booking are planned improvements.
 
 ---
 
 ## Quickstart
 
-**Prerequisites:** Docker with the Compose plugin. Nothing else.
+### Prerequisites
 
-```bash
+- Docker Desktop or Docker Engine with the Docker Compose plugin
+- Git
+
+You do **not** need to install the C++ toolchain or PostgreSQL separately to run the Compose stack.
+
+### 1. Clone and configure
+
+In PowerShell:
+
+```powershell
 git clone https://github.com/alankhal/tradevault.git
 cd tradevault
-cp .env.example .env
-docker compose up --build
+Copy-Item .env.example .env
+notepad .env
 ```
 
-The API listens on `http://localhost:8080` (configurable in `.env`). Swagger UI is served at `/docs`.
+Replace `YOUR_DOCKER_PASSWORD` in `.env` with a password for your local PostgreSQL container. On macOS or Linux, use `cp .env.example .env` instead of `Copy-Item`.
 
-Book, fetch, list, and cancel a trade:
+Do not commit `.env` or put real passwords in the repository.
 
-```bash
-# Create
-curl -s -X POST http://localhost:8080/v1/trades \
-  -H 'Content-Type: application/json' \
-  -d '{
-        "trade_id": "T-1001",
-        "instrument": "AAPL",
-        "side": "BUY",
-        "quantity": 100,
-        "price": 189.25,
-        "counterparty": "CPTY-42",
-        "trade_time": "2026-10-06T14:30:00Z"
-      }'
+### 2. Build and start the application
 
-# Fetch one
-curl -s http://localhost:8080/v1/trades/T-1001
-
-# List (paginated)
-curl -s 'http://localhost:8080/v1/trades?limit=20&offset=0'
-
-# Cancel
-curl -s -X POST http://localhost:8080/v1/trades/T-1001/cancel
-
-# Retrying the same POST returns 409, not a second trade
+```powershell
+docker compose up -d --build --wait
+docker compose ps
 ```
 
-A full walkthrough is in [`scripts/demo.sh`](scripts/demo.sh).
+Both `api` and `db` should report **healthy**. The first build may take longer while Docker downloads and compiles C++ dependencies.
+
+### 3. Open the application
+
+| Resource | Local URL |
+|---|---|
+| API health endpoint | http://127.0.0.1:8080/healthz |
+| Swagger UI | http://127.0.0.1:8080/swagger.html |
+| OpenAPI specification | http://127.0.0.1:8080/openapi.json |
+
+The API is bound to `127.0.0.1:8080` by the provided Compose configuration.
+
+### 4. Create and retrieve a trade
+
+These examples use PowerShell's `Invoke-RestMethod`.
+
+**Create a trade:**
+
+```powershell
+$body = @{
+    instrument = "AAPL"
+    counterparty = "Goldman Sachs"
+    side = "Buy"
+    price = 215.50
+    quantity = 10
+} | ConvertTo-Json
+
+$created = Invoke-RestMethod -Uri "http://127.0.0.1:8080/trades" -Method Post -ContentType "application/json" -Body $body
+$created
+```
+
+A successful request returns **201 Created** and a JSON trade containing a PostgreSQL-generated numeric `id` and an initial `Booked` status.
+
+**Retrieve the new trade:**
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8080/trades/$($created.id)"
+```
+
+**List all stored trades:**
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8080/trades"
+```
+
+**Cancel the new trade:**
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8080/trades/$($created.id)/cancel" -Method Post
+```
+
+### 5. Stop the services
+
+```powershell
+docker compose down
+```
+
+This stops and removes the containers while retaining the named PostgreSQL volume. Trade data remains available when you start the stack again.
+
+**Data-loss warning:** `docker compose down -v` also deletes the named database volume. Do not run it unless you intentionally want to discard the stored data.
 
 ---
 
-## API
+## API reference
 
-The contract lives in [`openapi.yaml`](openapi.yaml).
+The API contract is maintained in [`public/openapi.json`](public/openapi.json), with interactive documentation available through Swagger UI at `/swagger.html`.
 
-| Method | Path | Success | Errors |
+| Method | Route | Behavior | Typical success status |
 |---|---|---|---|
-| `POST` | `/v1/trades` | `201 Created` | `400` invalid trade, `409` duplicate `trade_id` |
-| `GET` | `/v1/trades/{id}` | `200 OK` | `404` unknown id |
-| `GET` | `/v1/trades` | `200 OK` | `400` bad pagination params |
-| `POST` | `/v1/trades/{id}/cancel` | `200 OK` | `404` unknown id, `409` already cancelled |
-| `GET` | `/healthz` | `200 OK` | `503` database unreachable |
+| `GET` | `/healthz` | Returns an HTTP service health response | `200` |
+| `POST` | `/trades` | Validates and stores a new trade | `201` |
+| `GET` | `/trades` | Returns all stored trades as a JSON array | `200` |
+| `GET` | `/trades/{id}` | Retrieves a trade using its numeric ID | `200` |
+| `POST` | `/trades/{id}/cancel` | Cancels an existing trade | `200` |
 
-### Error format
+### Request fields
 
-Every error uses [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/problem+json`, so clients parse one shape for every failure:
+`POST /trades` accepts the following JSON fields:
+
+| Field | Type | Example |
+|---|---|---|
+| `instrument` | String | `"AAPL"` |
+| `counterparty` | String | `"Goldman Sachs"` |
+| `side` | String | `"Buy"` or `"Sell"` |
+| `price` | Number, greater than zero | `215.50` |
+| `quantity` | Integer, greater than zero | `10` |
+
+The application generates the trade's ID and timestamp. The list endpoint currently returns all trades; pagination is not implemented.
+
+### Error handling
+
+Expected domain errors are translated into HTTP status codes:
+
+| Condition | Status |
+|---|---|
+| Invalid trade fields or malformed JSON | `400 Bad Request` |
+| Unknown trade ID | `404 Not Found` |
+| Conflicting operation, such as cancelling an already cancelled trade | `409 Conflict` |
+| Internal error represented by the domain error mapper | `500 Internal Server Error` |
+
+Error responses use a JSON structure with fields such as `type`, `title`, `status`, and `detail`. The project follows a *problem-details-style* shape; it does not currently guarantee every aspect of RFC 7807, including the `application/problem+json` media type.
+
+Example:
 
 ```json
 {
-  "type": "https://tradevault.dev/problems/validation",
-  "title": "Validation failed",
+  "type": "about:blank",
+  "title": "Bad Request",
   "status": 400,
-  "detail": "quantity must be greater than 0",
-  "instance": "/v1/trades"
+  "detail": "Side must be either Buy or Sell"
 }
 ```
 
-Domain errors map to HTTP status in exactly one place:
-
-| Domain error | HTTP status |
-|---|---|
-| `ValidationError` | 400 |
-| `NotFound` | 404 |
-| `Conflict` (duplicate id, invalid state change) | 409 |
-| Anything unexpected | 500 (logged with request id, no internals leaked) |
+The `/healthz` handler currently returns `{"status":"ok"}` when the HTTP service responds. It does not run a database query on every health request; database connection setup happens separately during application startup.
 
 ---
 
-## Architecture (current: M0–M4)
+## Architecture
 
 ```mermaid
 flowchart LR
-    C[Client<br/>curl / Swagger UI] -->|HTTP + JSON| CT[Drogon controllers]
-    subgraph API[TradeVault API container]
-        CT --> V[Validation]
-        V --> S[TradeService]
-        S --> R[[TradeRepository interface]]
-        R --> PG[PgTradeRepository<br/>libpqxx, pooled]
-        R -.tests.-> MEM[InMemoryTradeRepository]
-    end
-    PG -->|prepared statements,<br/>transactions| DB[(PostgreSQL 16<br/>trades table)]
+    Client["HTTP client / Swagger UI"] --> Controller["Drogon TradeController"]
+    Controller --> Service["TradeService and validation"]
+    Service --> Interface["TradeRepository interface"]
+    Interface --> PgRepo["PostgresTradeRepository"]
+    PgRepo --> Pool["PostgresConnectionPool / libpqxx"]
+    Pool --> Database[("PostgreSQL 16")]
+    Interface -. "Unit tests" .-> Memory["InMemoryTradeRepository"]
 ```
 
-- **Controllers** translate HTTP and JSON to domain calls and domain errors to problem responses. No business logic lives here.
-- **`tradevault_core`** is a library with the `Trade` type, validation rules, and `TradeService`. It has no I/O, which keeps it fast to unit test.
-- **`TradeRepository`** is the seam. `InMemoryTradeRepository` backs the unit tests; `PgTradeRepository` backs the running service. Which one is used is set by configuration.
+**Domain layer:** `Trade`, validation, and `TradeService` hold the business operations. `Result<T, E>` makes expected errors explicit.
 
-### Persistence
+**HTTP layer:** Drogon routes requests to `TradeController`. `TradeJson` handles trade serialization, and `HttpErrorMapper` maps domain errors into JSON error responses.
 
-- Migrations in [`db/migrations/`](db/migrations) are numbered SQL files applied in order and are safe to re-run.
-- `trade_id` carries a `UNIQUE` constraint; a violation is translated to `Conflict` → `409`.
-- All queries are prepared statements with bound parameters.
-- Writes run inside transactions, so a failure mid-operation leaves no partial rows.
-- A small connection pool avoids opening a new connection for each request.
+**Persistence layer:** `PostgresTradeRepository` implements the repository abstraction, uses libpqxx with parameterized SQL, and borrows connections from `PostgresConnectionPool`.
+
+### PostgreSQL storage
+
+- Schema initialization is defined in [`migrations/0001_create_trades.sql`](migrations/0001_create_trades.sql).
+- `trade_id` is a PostgreSQL-generated identity column and primary key.
+- Database constraints reject invalid values such as nonpositive prices or quantities and unsupported side or status values.
+- Write operations use transactions so a failed transaction is not partially committed.
+- Docker's PostgreSQL initialization mechanism applies the mounted SQL file when a **new, empty database volume** is initialized. It does not automatically rerun migrations against an existing volume on every startup.
 
 ### Containers
 
-- [`Dockerfile`](Dockerfile) has two stages: a build stage with the full toolchain and vcpkg, and a slim runtime stage that copies in only the binary and runs as an unprivileged user.
-- [`docker-compose.yml`](docker-compose.yml) runs the API and Postgres. Postgres has a healthcheck, and the API uses `depends_on: condition: service_healthy`.
-- Configuration comes from environment variables (see [`.env.example`](.env.example)). No secrets are baked into the image.
+[`Dockerfile`](Dockerfile) uses a build stage with the compiler and vcpkg, followed by a smaller runtime stage containing the application executable, configuration, and Swagger files. The application runs as the `tradevault` user.
+
+[`compose.yaml`](compose.yaml) starts two services:
+
+- `db`: PostgreSQL 16 with a persistent named volume and a readiness check using `pg_isready`.
+- `api`: TradeVault with a `/healthz` check, a database connection string, and a dependency on the database being healthy.
+
+Compose publishes only the API port to the host. PostgreSQL is available on the Compose network rather than exposed as a host port by default.
 
 ---
 
-## Development
+## Development and testing
 
 ### Toolchain
 
-- C++20 compiler: GCC 13+ or MSVC 2022
-- CMake 3.25+
-- [vcpkg](https://github.com/microsoft/vcpkg) in manifest mode (dependencies pinned in [`vcpkg.json`](vcpkg.json))
+Native development uses a C++20 compiler, CMake, Ninja, vcpkg, Drogon, libpqxx, and GoogleTest. The project supplies CMake presets for debug and release builds.
 
-### Build and test locally
+With `VCPKG_ROOT` set up for your environment:
 
-```bash
+```powershell
 cmake --preset debug
 cmake --build --preset debug
-ctest --preset debug            # unit tests, no database required
 ```
 
-Integration tests run against the Compose stack:
+### GoogleTest
 
-```bash
-docker compose up -d --wait
-ctest --preset integration
-docker compose down -v
+The current suite registers **52 GoogleTests**: 33 core/domain tests, 7 PostgreSQL tests, and 12 controller tests.
+
+To run the tests that do not require PostgreSQL:
+
+```powershell
+ctest --preset debug -E '^Postgres'
 ```
+
+To run the full suite, including database tests, a PostgreSQL instance and a valid `TRADEVAULT_DB_CONNECTION` environment variable are required. The Linux GitHub Actions job provisions its own test database and runs all 52 tests; the Windows CI job runs the 45 tests that do not need PostgreSQL.
+
+### Docker Compose API smoke test
+
+After starting the Compose stack, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\compose_api_smoke.ps1
+```
+
+The smoke script checks `/healthz`, creates a trade with `POST /trades`, and retrieves it with `GET /trades/{id}`. It writes a test trade to the connected database.
 
 ### Repository layout
 
-| Path | Contents |
+| Path | Purpose |
 |---|---|
-| `src/core/` | `tradevault_core`: domain model, validation, service, repository interface |
-| `src/api/` | Drogon controllers, JSON mapping, error-to-problem mapping |
-| `src/db/` | `PgTradeRepository`, connection pool |
-| `db/migrations/` | Versioned SQL migrations |
-| `tests/unit/` | GoogleTest unit tests (no I/O) |
-| `tests/integration/` | Repository and API tests against real Postgres |
-| `openapi.yaml` | API contract |
-| `docs/adr/` | Architecture Decision Records |
-| `.github/workflows/` | CI pipeline |
+| `app/main.cpp` | Drogon application initialization and dependency wiring |
+| `src/core/` | Domain model, service, and in-memory repository |
+| `src/api/` | HTTP controller, JSON serialization, and error mapping |
+| `src/db/` | PostgreSQL repository and connection pool |
+| `src/include/` | Shared public headers |
+| `migrations/` | PostgreSQL initialization SQL |
+| `public/openapi.json` | OpenAPI specification |
+| `public/swagger.html` | Swagger UI entry point |
+| `config/` | Drogon configuration, including Docker-specific settings |
+| `tests/` | GoogleTest files and Compose smoke script |
+| `Dockerfile` | Multi-stage application container build |
+| `compose.yaml` | API and PostgreSQL orchestration |
+| `.github/workflows/ci.yml` | Automated build, test, publish, and scan pipeline |
 
 ---
 
-## Testing and quality
+## Continuous integration and delivery
 
-| Level | What it covers | Runs |
-|---|---|---|
-| Unit | Every validation rule and boundary value, error mapping, JSON mapping | Every PR, Linux (GCC) + Windows (MSVC) |
-| Integration (DB) | CRUD round-trip, duplicate `trade_id` → conflict, rollback on failure, migrations re-run cleanly | Every PR, against a Postgres container |
-| Integration (API) | `201` happy path, `400` malformed JSON with problem body, `404`, `409` | Every PR, against the Compose stack |
-| Static analysis | clang-tidy, clang-format check | Every PR |
-| Image scan | Trivy, fails on critical CVEs | Every PR |
+GitHub Actions runs automatically for pull requests and pushes to `main`.
 
-The suite currently has **45+ GoogleTest tests**.
+### Build and verification
 
-### CI pipeline
+The workflow performs these checks:
 
+| Job | What it verifies |
+|---|---|
+| Windows build and tests | MSVC compilation and 45 database-independent GoogleTests |
+| Linux build and tests | Linux compilation and all 52 GoogleTests using temporary PostgreSQL |
+| Static analysis | `clang-tidy` against the configured C++ project |
+| Docker Compose integration | Builds and starts both containers, then executes API smoke tests |
+
+### Image publication
+
+For pushes to `main`, the `publish-image` job runs **after** the four build, testing, and static-analysis checks have passed. It publishes the Docker image to GHCR with two tags:
+
+```text
+ghcr.io/alankhal/tradevault:latest
+ghcr.io/alankhal/tradevault:sha-<commit-sha>
 ```
-PR opened ─► build (GCC + MSVC) ─► format + clang-tidy ─► unit tests
-          ─► docker compose up ─► integration tests ─► compose down
-          ─► build image ─► Trivy scan
-merge to main ─► publish image to GHCR
+
+To retrieve a published image (if its package visibility and your authentication permit access):
+
+```powershell
+docker pull ghcr.io/alankhal/tradevault:latest
 ```
 
-`main` is branch-protected; a red check blocks the merge button.
+The standard `compose.yaml` builds the API image locally from source; pulling the GHCR image is a separate distribution option and does not replace the database configuration.
+
+### Vulnerability scanning
+
+The `scan-image` GitHub Actions job runs Trivy **after** the image has been published to GHCR. It scans operating-system and library dependencies and fails if it detects a **fixable CRITICAL** vulnerability under its configured policy (`ignore-unfixed: true`).
+
+Because scanning currently happens after publication, a failed scan does **not** prevent the image from being uploaded. Moving the security gate before publication is a possible future improvement.
+
+A successful CI run demonstrates that the configured checks passed for that commit; it is not a guarantee that the service is free of vulnerabilities or production-ready.
+
+---
+
+## Troubleshooting
+
+**The API container is not healthy.** Run `docker compose ps` and `docker compose logs api --tail=100`. Check for startup failures and confirm PostgreSQL became healthy.
+
+**PostgreSQL authentication fails.** Verify `TRADEVAULT_POSTGRES_PASSWORD` in `.env`. PostgreSQL initialization variables are applied when a volume is first created; changing the password in `.env` alone does not reset an existing database user's password.
+
+**Port 8080 is already in use.** Stop the process or container using the port, or change the host-side port mapping in `compose.yaml` (the default is `127.0.0.1:8080:8080`).
+
+**Database schema is missing.** Confirm the migration file is mounted and that it was applied when the PostgreSQL volume was initialized. Avoid deleting an existing volume just to force the migration to rerun, as that would discard data.
+
+**Tests fail because `TRADEVAULT_DB_CONNECTION` is missing.** Run the database-independent tests using the `-E '^Postgres'` filter, or configure a reachable test database before running all tests.
 
 ---
 
@@ -240,12 +352,15 @@ merge to main ─► publish image to GHCR
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M0 | CMake + vcpkg scaffold, GoogleTest, clang-tidy/format, CI | ✅ Done |
-| M1 | Domain model, validation, in-memory service, unit tests | ✅ Done |
-| M2 | Drogon REST API, OpenAPI contract, problem+json errors | ✅ Done |
-| M3 | PostgreSQL repository, migrations, pooling, idempotent booking | ✅ Done |
-| M4 | Multi-stage Docker image, Compose stack, in-stack CI tests, GHCR | ✅ Done |
+| M0 | CMake, vcpkg, GoogleTest, and initial CI foundation | Complete |
+| M1 | Domain model, validation, in-memory repository, and core tests | Complete |
+| M2 | Drogon REST API, HTTP error mapping, and OpenAPI documentation | Complete |
+| M3 | PostgreSQL storage, schema initialization, and connection pooling | Complete |
+| M4 | Multi-stage Docker image, Compose, CI integration tests, GHCR publication, and Trivy scan | Complete |
+| Future | Retry-safe booking and idempotency, improved migration handling, observability, performance tests, and deployment automation | Planned |
+
+---
 
 ## License
 
-MIT
+A license file has not yet been added to this repository. Add an appropriate `LICENSE` file before representing the project as MIT-licensed or granting reuse rights under that license.
