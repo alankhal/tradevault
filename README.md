@@ -363,8 +363,6 @@ A successful CI run demonstrates that the configured checks passed for that comm
 
 ## License
 
-## License
-
 MIT License
 
 Copyright (c) 2026 Alan Khalif

@@ -1,4 +1,5 @@
 #include "tradevault/TradeService.hpp"
+#include <iostream>
 
 //All of these functions take the implementation of InMemoryTradeRepo, this will save time later one when forming POSTgre 
 //Added try and catch blocks so service layer can catch a database/repository failure and translate it into your application’s own error type.
@@ -49,6 +50,7 @@ Result<Trade, TradeError> TradeService::createTrade(
 
         return Result<Trade, TradeError>::success(storedTrade);
     }
+
     catch (const std::runtime_error&)
     {
         return Result<Trade, TradeError>::failure(TradeError::InternalError);
